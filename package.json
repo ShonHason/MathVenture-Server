@@ -1,0 +1,38 @@
+{
+  "name": "mathventure",
+  "version": "1.0.0",
+  "description": "Mathventure is an interactive educational app that offers personalized math lessons, adapting to students' progress and providing step-by-step solutions with challenges tailored to their skill level.",
+  "main": "app.js",
+  "scripts": {
+    "test": "tsc && jest --detectOpenHandles --forceExit --runInBand",
+    "devStart": "nodemon app.js"
+  },
+  "author": "Shon Hasson, Rotem Ziv, Dan Akrabi, Roey Biton",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "body-parser": "^1.20.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongo": "^0.1.0",
+    "mongodb": "^6.12.0",
+    "mongoose": "^8.9.3",
+    "node": "^23.5.0",
+    "nodemon": "^3.1.9"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/express": "^4.17.1",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.5",
+    "@types/supertest": "^6.0.2",
+    "jest": "^29.7.0",
+    "mongodb-memory-server": "^10.1.3",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}
