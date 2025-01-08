@@ -1,9 +1,13 @@
-import express, { Express } from "express";
-import dotenv from "dotenv";
-import mongoose from "mongoose";
-import bodyParser from "body-parser";
-import userRoutes from "./routes/userRoutes";
+
+
+import express, { Express } from 'express';
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import bodyParser from 'body-parser';
+import userRoutes from './routes/userRoutes';
+import emailRoutes from './routes/emailRoutes';
 import lessonsRoutes from "./routes/lessonsRoutes";
+
 
 dotenv.config();
 
@@ -12,8 +16,10 @@ const app: Express = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.use("/user", userRoutes);
 app.use("/lessons", lessonsRoutes);
+app.use('/user',userRoutes)
+app.use('/email',emailRoutes)
+
 
 const initApplication = async (): Promise<Express> => {
   return new Promise<Express>((resolve, reject) => {
