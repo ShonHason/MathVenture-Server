@@ -1,14 +1,16 @@
 import userController from "../controllers/userController";
 import express , { Request , Response } from "express";
+import { userTokensMiddleware } from "../controllers/userController";
 
 const router  = express.Router();
 
 router.post("/register", userController.register);
 router.post("/login", userController.login);
 //router.post("/refresh", userController.refresh);
-router.post("/logout", userController.logout);
-router.post("/updatePassword", userController.updatePassword);
-router.post("/updateParentsMail", userController.updateParentsMail);
-router.post("/getUserProfile", userController.getUserProfile);
+router.post("/logout", userTokensMiddleware, userController.logout);
+router.post("/getUserProfile", userTokensMiddleware , userController.getUserProfile);
+router.put("/updatePassword", userTokensMiddleware , userController.updatePassword);
+router.put("/updateParentsMail", userTokensMiddleware , userController.updateParentsMail);
+router.delete("/deleteUser", userTokensMiddleware, userController.deleteUser);
 
 export default router;

@@ -120,23 +120,41 @@ const login = async (req: Request, res: Response) => {
   return;
 }
 
-
 const logout = async (req: Request, res: Response) => {
-  const token = req.body.refreshToken;
-  if (!token) {
-    res.status(400).send('Token is required');
+  const refreshToken = req.body.refreshToken;
+
+  // Step 1: Validate input
+  if (!refreshToken) {
+    res.status(400).send('Refresh token is required');
     return;
   }
-  const user =  await userModel.findOne({refreshTokens : token});
-  if (!user) {
-    res.status(400).send('Invalid Token');
-    return;
+
+  // Step 2: Fetch user from the database using the user ID set by the middleware
+  const userId = req.query.userId;
+  try {
+    const user = await userModel.findById(userId);
+    if (!user) {
+      res.status(404).send('User not found');
+      return;
+    }
+
+    if (!user.refreshTokens || !user.refreshTokens.includes(refreshToken)) {
+      res.status(403).send('Refresh token not associated with this user');
+      return;
+    }
+
+    // Step 3: Remove the token and save the user
+    user.refreshTokens = user.refreshTokens.filter((token) => token !== refreshToken);
+    await user.save();
+
+    res.status(200).send('Logged out successfully');
+  } catch (err) {
+    console.error('Error during logout:', err);
+    res.status(500).send('Server error during logout');
   }
-  user.refreshTokens = user.refreshTokens.filter((t) => t !== token);
-  await user.save();
-  res.status(200).send('Logged out');
-  return;
-}
+};
+
+
 
 const updatePassword = async (req: Request, res: Response) => {
   const email = req.body.email;
@@ -165,26 +183,28 @@ const updatePassword = async (req: Request, res: Response) => {
 } 
 
 const updateParentsMail = async (req: Request, res: Response) => {
-  const email = req.body.email;
   const parent_email = req.body.parent_email;
   if (!parent_email || parent_email.trim().length === 0) {
     res.status(400).send('Parent email is required');
     return;
   }
-  const user = await userModel.findOne({email : email});
-  if (!user) {
-    res.status(400).send('Couldnt find user');
-    return;
-  }
+  const decodedPayload = jwt.decode(req.body.accessToken);
+  if (decodedPayload && typeof decodedPayload !== 'string') {
+  const userId = (decodedPayload as JwtPayload)._id;
+  const user = await userModel.findOne({_id : userId});
+    if (!user) {
+      res.status(400).send('Couldnt find user');
+      return;
+    }
   user.parent_email = parent_email;
   await user.save();
   res.status(200).send('Parent email updated ' + user.email);
   return;
+  }
 }
 
 const getUserProfile = async (req: Request, res: Response) => {
-        const decodedPayload = jwt.decode(req.body.accessToken);
-
+  const decodedPayload = jwt.decode(req.body.accessToken);
   if (decodedPayload && typeof decodedPayload !== 'string') {
   const userId = (decodedPayload as JwtPayload)._id;
   const user = await userModel.findOne({_id : userId});
@@ -199,5 +219,49 @@ const getUserProfile = async (req: Request, res: Response) => {
     return;
   } 
 }
+const deleteUser = async (req: Request, res: Response) => {
+  const decodedPayload = jwt.decode(req.body.accessToken);
 
-export default {register , login, logout , updatePassword , updateParentsMail, getUserProfile};  
+  if (decodedPayload && typeof decodedPayload !== 'string') {
+  const userId = (decodedPayload as JwtPayload)._id;
+  const user = await userModel.findOne({_id : userId});
+    if (!user) {
+      res.status(400).send('Couldnt find user');
+      return;
+    }
+    await user.deleteOne();
+    res.status(200).send('User deleted');
+    return;
+  }
+}
+type TokenPayload = {    
+  _id: string;
+}
+
+export const userTokensMiddleware =  (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if(!token) { 
+      res.status(401).send('missing token');
+      return;
+  }
+  if(!process.env.TOKEN_SECRET){
+      res.status(500).send("Missing Token Secret");
+      return;
+  }
+  else{
+
+  jwt.verify(token, process.env.TOKEN_SECRET ,(err, data) => {
+      if(err) {
+          res.status(403).send('Invalid Token');       
+          return;
+      }
+      const payload = data as TokenPayload;
+      req.query.userId = payload._id;   
+      
+      next();
+  });   
+  } 
+}
+
+export default {register , login, logout , updatePassword , updateParentsMail, getUserProfile , deleteUser};  

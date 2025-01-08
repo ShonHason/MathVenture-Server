@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import userRoutes from './routes/userRoutes';
+import emailRoutes from './routes/emailRoutes';
 
 dotenv.config();
 
@@ -12,6 +13,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use('/user',userRoutes)
+app.use('/email',emailRoutes)
 
 
 
