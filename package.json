@@ -6,10 +6,10 @@
   "scripts": {
     "check": "npx tsc && npx eslint .",
     "test": "tsc && jest --detectOpenHandles --forceExit --runInBand",
-
-    "testLessons": "jest --detectOpenHandles --forceExit --runInBand lessons.test.ts"
+    "testLessons": "jest --detectOpenHandles --forceExit --runInBand lessons.test.ts",
+    "testUsers": "jest --detectOpenHandles --forceExit --runInBand user.test.ts",
     "testEmail": "tsc && jest --detectOpenHandles --forceExit email.test.ts ",
-    "devStart": "nodemon ./src/app.ts",
+    "devStart": "nodemon ./src/app.ts"
   },
   "author": "Shon Hasson, Rotem Ziv, Dan Akrabi, Roey Biton",
   "license": "ISC",
@@ -23,11 +23,10 @@
     "mongo": "^0.1.0",
     "mongodb": "^6.12.0",
     "mongoose": "^8.9.3",
-
     "node": "^23.5.0",
     "nodemailer": "^6.9.16",
-
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "sendgrid": "^5.2.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
