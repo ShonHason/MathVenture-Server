@@ -1,13 +1,12 @@
-
-
 import express, { Express } from 'express';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
+import path from 'path';
+import cors from 'cors';
 import userRoutes from './routes/userRoutes';
 import emailRoutes from './routes/emailRoutes';
 import lessonsRoutes from "./routes/lessonsRoutes";
-
 
 dotenv.config();
 
@@ -17,9 +16,19 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use("/lessons", lessonsRoutes);
-app.use('/user',userRoutes)
-app.use('/email',emailRoutes)
+app.use('/user', userRoutes);
+app.use('/email', emailRoutes);
 
+// Serve static files if in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve the React app's static build files
+  app.use(express.static(path.join(__dirname, '../client/build')));
+
+  // Catch-all route to handle non-API routes and render React app
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  });
+}
 
 const initApplication = async (): Promise<Express> => {
   return new Promise<Express>((resolve, reject) => {
@@ -39,7 +48,6 @@ const initApplication = async (): Promise<Express> => {
       return;
     } else {
       mongoose.connect(process.env.DATABASE_URL).then(() => {
-        //app.use(express.json());
         resolve(app);
       });
     }
