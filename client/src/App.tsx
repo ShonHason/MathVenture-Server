@@ -1,4 +1,5 @@
 import React from "react";
+
 import {
   BrowserRouter as Router,
   Routes,
@@ -6,6 +7,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import LoginRegistration from "./pages/login";
+import HomePage from "./pages/HomePage";
 
 const App: React.FC = () => {
   return (
@@ -14,7 +16,7 @@ const App: React.FC = () => {
         <Route path="/" element={<Navigate to="/login" replace />} />
 
         <Route path="/login" element={<LoginRegistration />} />
-
+        <Route path="/home" element={<HomePage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
