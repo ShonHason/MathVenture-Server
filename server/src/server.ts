@@ -3,7 +3,6 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import path from 'path';
-import cors from 'cors';
 import userRoutes from './routes/userRoutes';
 import emailRoutes from './routes/emailRoutes';
 import lessonsRoutes from "./routes/lessonsRoutes";
@@ -19,14 +18,11 @@ app.use("/lessons", lessonsRoutes);
 app.use('/user', userRoutes);
 app.use('/email', emailRoutes);
 
-// Serve static files if in production
 if (process.env.NODE_ENV === 'production') {
-  // Serve the React app's static build files
-  app.use(express.static(path.join(__dirname, '../client/build')));
+  app.use(express.static(path.resolve(__dirname, '../client/build')));
 
-  // Catch-all route to handle non-API routes and render React app
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+    res.sendFile(path.resolve(__dirname, '../client/build', 'index.html'));
   });
 }
 

@@ -4,7 +4,8 @@ import {
   GoogleOutlined,
   AppleOutlined,
   FacebookOutlined,
-} from "@ant-design/icons"; // Import icons
+} from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 const { Title } = Typography;
 
 interface FormValues {
@@ -15,22 +16,25 @@ interface FormValues {
 }
 
 export const LoginRegistration: React.FC = () => {
+  const navigate = useNavigate();
+
   const onLoginFinish = (values: FormValues) => {
     console.log("Login Success:", values);
   };
 
   const onRegisterFinish = (values: FormValues) => {
     console.log("Registration Success:", values);
+    navigate("/quiz");
   };
 
   return (
     <Space
       direction="vertical"
       style={{
-        height: "100vh", // full viewport height
-        display: "flex", // enables flexbox
-        justifyContent: "center", // centers vertically
-        alignItems: "center", // centers horizontally
+        height: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
         padding: "20px",
       }}
     >
@@ -59,33 +63,33 @@ export const LoginRegistration: React.FC = () => {
           items={[
             {
               key: "1",
-              label: "Login",
+              label: "התחברות",
               children: (
                 <Form name="login" onFinish={onLoginFinish} layout="vertical">
                   <Form.Item
-                    label="Email"
+                    label="אימייל"
                     name="email"
                     rules={[
-                      { required: true, message: "Please input your email!" },
+                      { required: true, message: "אנא הכנס את האימייל שלך!" },
                     ]}
                   >
-                    <Input placeholder="Enter your email" />
+                    <Input placeholder="הכנס אימייל" />
                   </Form.Item>
                   <Form.Item
-                    label="Password"
+                    label="סיסמא"
                     name="password"
                     rules={[
                       {
                         required: true,
-                        message: "Please input your password!",
+                        message: "אנא הכנס את הסיסמא שלך!",
                       },
                     ]}
                   >
-                    <Input.Password placeholder="Enter your password" />
+                    <Input.Password placeholder="הכנס סיסמא" />
                   </Form.Item>
                   <Form.Item>
                     <Button type="primary" htmlType="submit" block>
-                      Login
+                      התחבר
                     </Button>
                   </Form.Item>
                 </Form>
@@ -93,7 +97,7 @@ export const LoginRegistration: React.FC = () => {
             },
             {
               key: "2",
-              label: "Register",
+              label: "הרשמה",
               children: (
                 <Form
                   name="register"
@@ -101,43 +105,39 @@ export const LoginRegistration: React.FC = () => {
                   layout="vertical"
                 >
                   <Form.Item
-                    label="Name"
+                    label="שם ההורה"
                     name="name"
-                    rules={[
-                      { required: true, message: "Please input your name!" },
-                    ]}
+                    rules={[{ required: true, message: "אנא הכנס את שמך!" }]}
                   >
-                    <Input placeholder="Enter your name" />
+                    <Input placeholder="שם ההורה" />
                   </Form.Item>
                   <Form.Item
-                    label="Email"
+                    label="אימייל"
                     name="email"
-                    rules={[
-                      { required: true, message: "Please input your email!" },
-                    ]}
+                    rules={[{ required: true, message: "" }]}
                   >
-                    <Input placeholder="Enter your email" />
+                    <Input placeholder="אנא הכנס את האימייל שלך!" />
                   </Form.Item>
                   <Form.Item
-                    label="Password"
+                    label="סיסמא"
                     name="password"
                     rules={[
                       {
                         required: true,
-                        message: "Please input your password!",
+                        message: "אנא הכנס סיסמא!",
                       },
                     ]}
                   >
-                    <Input.Password placeholder="Create a password" />
+                    <Input.Password placeholder="צור סיסמא" />
                   </Form.Item>
                   <Form.Item
-                    label="Confirm Password"
+                    label="אשר סיסמה"
                     name="confirmPassword"
                     dependencies={["password"]}
                     rules={[
                       {
                         required: true,
-                        message: "Please confirm your password!",
+                        message: "אנא אשר את הסיסמא!",
                       },
                       ({ getFieldValue }) => ({
                         validator(_, value) {
@@ -145,17 +145,17 @@ export const LoginRegistration: React.FC = () => {
                             return Promise.resolve();
                           }
                           return Promise.reject(
-                            new Error("The two passwords do not match!")
+                            new Error("הסיסמאות אינן תואמות!")
                           );
                         },
                       }),
                     ]}
                   >
-                    <Input.Password placeholder="Confirm your password" />
+                    <Input.Password placeholder="אשר את הסיסמא שלך" />
                   </Form.Item>
                   <Form.Item>
                     <Button type="primary" htmlType="submit" block>
-                      Register
+                      הירשם
                     </Button>
                   </Form.Item>
                 </Form>
