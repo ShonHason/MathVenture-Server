@@ -18,6 +18,7 @@ declare module "react-pro-sidebar" {
   }
 
   export interface MenuItemProps {
+    onClick?: any;
     children?: React.ReactNode;
     icon?: React.ReactNode; // Add icon property
     className?: string; // Add className property
