@@ -3,13 +3,15 @@ import SideBar from "../features/SideBar";
 import React, { useContext, useEffect } from "react";
 import LessonsContext from "../context/LessonsContext";
 import "./HomePage.css";
+import HomePageContent from "../ui/HomePageContent";
 // import NavigationContext from "../context/NavigationContext";
 
 interface SideBarProps {
   onLessons: () => void;
 }
+interface HomePageProps {}
 
-function HomePage() {
+const HomePage: React.FC<HomePageProps> = () => {
   const lessonsContext = useContext(LessonsContext);
   const navigate = useNavigate();
   if (!lessonsContext) {
@@ -21,16 +23,21 @@ function HomePage() {
   useEffect(() => {
     isMenuLessonsActive ? navigate("/home/lessons") : navigate("/home");
   }, [isMenuLessonsActive, setIsMenuLessonsActive]);
+
   return (
     <>
       <div className="homepage-container">
         <SideBar onLessons={onLessons} />
         <div className="outlet-container">
-          <Outlet />
+          {window.location.pathname === "/home" ? (
+            <HomePageContent />
+          ) : (
+            <Outlet />
+          )}
         </div>
       </div>
     </>
   );
-}
+};
 
 export default HomePage;
