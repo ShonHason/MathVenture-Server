@@ -17,11 +17,10 @@ import { useNavigate } from "react-router-dom";
 
 interface SideBarProps {
   onLessons: () => void;
+  navigate: (path: string) => void;
 }
-interface SideBarProps {
-  onLessons: () => void;
-}
-const SideBar: React.FC<SideBarProps> = ({ onLessons }) => {
+
+const SideBar: React.FC<SideBarProps> = ({ onLessons, navigate }) => {
   const helpContext = useContext(HelpContext);
 
   const navigate = useNavigate();
@@ -34,6 +33,10 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons }) => {
   useEffect(() => {
     isMenuHelpActive ? navigate("/home/help") : navigate("/home");
   }, [isMenuHelpActive, setIsMenuHelpActive]);
+
+  const handleLogout = () => {
+    navigate("/login");
+  };
 
   return (
     <div className="sidebar">
@@ -57,7 +60,6 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons }) => {
                 onClick={onLessons}
               >
                 שיעורים
-                {/* {handleLessonsClick()} */}
               </MenuItem>
               <MenuItem
                 className="menu-item menu-item-help"
@@ -98,6 +100,7 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons }) => {
               <MenuItem
                 className="menu-item menu-item-logout"
                 icon={<LogoutOutlined />}
+                onClick={handleLogout} // Call handleLogout on click
               >
                 התנתק/י
               </MenuItem>
