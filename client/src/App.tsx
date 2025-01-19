@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-
 import {
   BrowserRouter as Router,
   Routes,
@@ -17,8 +16,7 @@ import ChoosePlanPage from "./pages/plan";
 
 const App: React.FC = () => {
   const [isMenuLessonsActive, setIsMenuLessonsActive] = useState(false);
-  const [topics, setTopics] = useState<string[]>([]); // Add topics state
-  // Toggle function
+  const [topics, setTopics] = useState<string[]>([]);
   const handleLessonsClick = () => {
     setIsMenuLessonsActive((prev) => !prev);
   };
