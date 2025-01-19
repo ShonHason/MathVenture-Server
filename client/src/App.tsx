@@ -13,39 +13,56 @@ import PageNotFound from "./pages/PageNotFound";
 import LessonsContext from "./context/LessonsContext";
 import QuizPage from "./pages/quiz";
 import ChoosePlanPage from "./pages/plan";
+import HelpPage from "./pages/HelpPage";
+import HelpContext from "./context/HelpContext";
 // import Help from "./pages/Help";
 
 const App: React.FC = () => {
   const [isMenuLessonsActive, setIsMenuLessonsActive] = useState(false);
+  const [isMenuHelpActive, setIsMenuHelpActive] = useState(false);
+
   const [topics, setTopics] = useState<string[]>([]); // Add topics state
   // Toggle function
   const handleLessonsClick = () => {
     setIsMenuLessonsActive((prev) => !prev);
   };
 
+  const handleHelpClick = () => {
+    setIsMenuHelpActive((prev) => !prev);
+  };
+
   return (
-    <LessonsContext.Provider
+    <HelpContext.Provider
       value={{
-        onLessons: handleLessonsClick,
-        isMenuLessonsActive,
-        setIsMenuLessonsActive,
-        topics,
-        setTopics,
+        onHelp: handleHelpClick,
+        isMenuHelpActive,
+        setIsMenuHelpActive,
       }}
     >
-      <Router>
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<LoginRegistration />} />
-          <Route path="/home" element={<HomePage />}>
-            <Route path="lessons" element={<Lessons />} />
-          </Route>
-          <Route path="/quiz" element={<QuizPage />} />
-          <Route path="/plan" element={<ChoosePlanPage />} />
-          <Route path="*" element={<PageNotFound />} />
-        </Routes>
-      </Router>
-    </LessonsContext.Provider>
+      <LessonsContext.Provider
+        value={{
+          onLessons: handleLessonsClick,
+          isMenuLessonsActive,
+          setIsMenuLessonsActive,
+          topics,
+          setTopics,
+        }}
+      >
+        <Router>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<LoginRegistration />} />
+            <Route path="/home" element={<HomePage />}>
+              <Route path="lessons" element={<Lessons />} />
+              <Route path="help" element={<HelpPage />} />
+            </Route>
+            <Route path="/quiz" element={<QuizPage />} />
+            <Route path="/plan" element={<ChoosePlanPage />} />
+            <Route path="*" element={<PageNotFound />} />
+          </Routes>
+        </Router>
+      </LessonsContext.Provider>
+    </HelpContext.Provider>
   );
 };
 

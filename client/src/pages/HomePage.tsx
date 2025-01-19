@@ -20,6 +20,7 @@ const HomePage: React.FC<HomePageProps> = () => {
 
   const { onLessons, isMenuLessonsActive, setIsMenuLessonsActive } =
     lessonsContext;
+
   useEffect(() => {
     isMenuLessonsActive ? navigate("/home/lessons") : navigate("/home");
   }, [isMenuLessonsActive, setIsMenuLessonsActive]);
