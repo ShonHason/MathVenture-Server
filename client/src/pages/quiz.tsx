@@ -8,8 +8,8 @@ import {
   Radio,
   Typography,
   Space,
-  message,
 } from "antd";
+import { useNavigate } from "react-router-dom";
 
 const { Step } = Steps;
 const { Title } = Typography;
@@ -27,9 +27,12 @@ interface FormValues {
 }
 
 const QuizPage: React.FC = () => {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [form] = Form.useForm<FormValues>();
   const [totalScore, setTotalScore] = useState<number>(0);
+  const [averageScore, setAverageScore] = useState<number | null>(null);
+  const [level, setLevel] = useState<string | null>(null);
 
   const steps = [
     { title: "שאלות 1-3", key: "step1" },
@@ -42,14 +45,12 @@ const QuizPage: React.FC = () => {
       const values = await form.validateFields();
       // Calculate step score
       const stepScore = Object.values(values)
-        .filter((val): val is number => typeof val === "number") // Type guard to filter only numbers
-        .reduce((acc, val) => acc + val, 0); // Sum the scores
+        .filter((val): val is number => typeof val === "number")
+        .reduce((acc, val) => acc + val, 0);
       setTotalScore((prev) => prev + stepScore);
       form.resetFields();
       setCurrentStep((prev) => prev + 1);
-    } catch {
-      message.error("אנא מלא את כל השדות הדרושים!");
-    }
+    } catch {}
   };
 
   const handleFinish = async () => {
@@ -60,17 +61,20 @@ const QuizPage: React.FC = () => {
         .filter((val): val is number => typeof val === "number")
         .reduce((acc, val) => acc + val, 0);
       const finalScore = totalScore + finalStepScore;
-      const averageScore = finalScore / 10;
+      const avgScore = finalScore / 10;
 
-      let level = "";
-      if (averageScore <= 2) level = "תולעת חכמה 🪱";
-      else if (averageScore <= 3.5) level = "כלב מתמטי 🐶";
-      else level = "נמר מספרים 🐯";
+      let calculatedLevel = "";
+      if (avgScore <= 2) calculatedLevel = " 🪱 תולעת חכמה ";
+      else if (avgScore <= 3.5) calculatedLevel = "🐶 כלב מתמטי";
+      else calculatedLevel = "🐯 נמר מספרים ";
 
-      message.success(`רמת התלמיד: ${level}`);
-    } catch {
-      message.error("אנא מלא את כל השדות הדרושים!");
-    }
+      setAverageScore(avgScore);
+      setLevel(calculatedLevel);
+    } catch {}
+  };
+
+  const navigateToPlan = () => {
+    navigate("/plan");
   };
 
   const questionSets = [
@@ -205,43 +209,56 @@ const QuizPage: React.FC = () => {
 
   return (
     <Space direction="vertical" style={{ width: "100%" }}>
-      <Title level={3} style={{ textAlign: "center" }}>
-        שאלון לתלמיד
-      </Title>
-      <Steps current={currentStep}>
-        {steps.map((step) => (
-          <Step key={step.key} title={step.title} />
-        ))}
-      </Steps>
-      <Form
-        form={form}
-        layout="vertical"
-        style={{ maxWidth: "600px", margin: "auto", marginTop: "20px" }}
-      >
-        {questionSets[currentStep].map((question, index) => (
-          <Form.Item
-            key={index}
-            name={question.name}
-            label={question.label}
-            rules={[{ required: true, message: "שדה זה חובה" }]}
+      {averageScore === null ? (
+        <>
+          <Title level={3} style={{ textAlign: "center" }}>
+            שאלון לתלמיד
+          </Title>
+          <Steps current={currentStep}>
+            {steps.map((step) => (
+              <Step key={step.key} title={step.title} />
+            ))}
+          </Steps>
+          <Form
+            form={form}
+            layout="vertical"
+            style={{ maxWidth: "600px", margin: "auto", marginTop: "20px" }}
           >
-            {question.inputType}
-          </Form.Item>
-        ))}
+            {questionSets[currentStep].map((question, index) => (
+              <Form.Item
+                key={index}
+                name={question.name}
+                label={question.label}
+                rules={[{ required: true, message: "שדה זה חובה" }]}
+              >
+                {question.inputType}
+              </Form.Item>
+            ))}
 
-        <Form.Item>
-          {currentStep < steps.length - 1 && (
-            <Button type="primary" onClick={handleNext}>
-              הבא
-            </Button>
-          )}
-          {currentStep === steps.length - 1 && (
-            <Button type="primary" onClick={handleFinish}>
-              סיים
-            </Button>
-          )}
-        </Form.Item>
-      </Form>
+            <Form.Item>
+              {currentStep < steps.length - 1 && (
+                <Button type="primary" onClick={handleNext}>
+                  הבא
+                </Button>
+              )}
+              {currentStep === steps.length - 1 && (
+                <Button type="primary" onClick={handleFinish}>
+                  סיים
+                </Button>
+              )}
+            </Form.Item>
+          </Form>
+        </>
+      ) : (
+        <div style={{ textAlign: "center", marginTop: "50px" }}>
+          <Title level={1}>:רמת התלמיד</Title>
+          <Title level={1}>{level}</Title>
+
+          <Button type="primary" onClick={navigateToPlan}>
+            המשך לבחירת תוכנית
+          </Button>
+        </div>
+      )}
     </Space>
   );
 };
