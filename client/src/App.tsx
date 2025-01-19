@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-
 import {
   BrowserRouter as Router,
   Routes,
@@ -21,8 +20,7 @@ const App: React.FC = () => {
   const [isMenuLessonsActive, setIsMenuLessonsActive] = useState(false);
   const [isMenuHelpActive, setIsMenuHelpActive] = useState(false);
 
-  const [topics, setTopics] = useState<string[]>([]); // Add topics state
-  // Toggle function
+  const [topics, setTopics] = useState<string[]>([]);
   const handleLessonsClick = () => {
     setIsMenuLessonsActive((prev) => !prev);
   };
