@@ -4,30 +4,28 @@ import React, { useContext, useEffect } from "react";
 import LessonsContext from "../context/LessonsContext";
 import "./HomePage.css";
 import HomePageContent from "../ui/HomePageContent";
-// import NavigationContext from "../context/NavigationContext";
 
-interface SideBarProps {
-  onLessons: () => void;
-}
 interface HomePageProps {}
 
 const HomePage: React.FC<HomePageProps> = () => {
   const lessonsContext = useContext(LessonsContext);
   const navigate = useNavigate();
+
   if (!lessonsContext) {
     throw new Error("SideBar must be used within a LessonsContext.Provider");
   }
 
   const { onLessons, isMenuLessonsActive, setIsMenuLessonsActive } =
     lessonsContext;
+
   useEffect(() => {
     isMenuLessonsActive ? navigate("/home/lessons") : navigate("/home");
-  }, [isMenuLessonsActive, setIsMenuLessonsActive]);
+  }, [isMenuLessonsActive, setIsMenuLessonsActive, navigate]);
 
   return (
     <>
       <div className="homepage-container">
-        <SideBar onLessons={onLessons} />
+        <SideBar onLessons={onLessons} navigate={navigate} />
         <div className="outlet-container">
           {window.location.pathname === "/home" ? (
             <HomePageContent />
