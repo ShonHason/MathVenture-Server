@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
 import sgMail from '@sendgrid/mail';
 import EmailModel from '../modules/emailModel'; // Replace with your actual email model
-import dotenv from 'dotenv';
 import jwt, { JwtPayload } from 'jsonwebtoken';
+import dotenv from 'dotenv';
+dotenv.config();
 
-dotenv.config();  // Load environment variables
-
-if (process.env.SENDGRID_API_KEY) {
+if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_API_KEY.trim() !== '') {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  console.log('SendGrid API key is set');
+  console.log('SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY);
 } else {
   throw new Error('SENDGRID_API_KEY is not defined in environment variables');
 }
@@ -53,7 +54,7 @@ const sendEmailAndSaveToDB = async (req: Request, res: Response): Promise<void> 
         text: message,
       };
 
-      //await sgMail.send(mailOptions);
+      await sgMail.send(mailOptions);
 
       // Step 3: Update the email status to "sent" in the database
       emailData.status = 'sent';
