@@ -1,5 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
-
+import React, { useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -8,39 +7,40 @@ import {
   useNavigate,
 } from "react-router-dom";
 import LoginRegistration from "./pages/login";
+import HomePage from "./pages/HomePage";
+import PageNotFound from "./pages/PageNotFound";
+import LessonsContext from "./context/LessonsContext";
 import QuizPage from "./pages/quiz";
 import ChoosePlanPage from "./pages/plan";
 
 const App: React.FC = () => {
   const [isMenuLessonsActive, setIsMenuLessonsActive] = useState(false);
-  // useEffect(() => {
-  //   if (isMenuLessonsActive) {
-  //     navigate("/home/lessons");
-  //   } else {
-  //     navigate("/home");
-  //   }
-  // }, [isMenuLessonsActive, navigate]);
 
   // Toggle function
   const handleLessonsClick = () => {
     setIsMenuLessonsActive((prev) => !prev);
   };
-  // function handleLessonsClick() {
-  //   const navigate = useNavigate(); // Call `useNavigate` within the Router's context
-  //   setIsMenuLessonsActive(!isMenuLessonsActive);
-  //   isMenuLessonsActive ? navigate("/home/lessons") : navigate("/home");
-  // }
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<LoginRegistration />} />
-        <Route path="/quiz" element={<QuizPage />} />
-        <Route path="/plan" element={<ChoosePlanPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Router>
+    <LessonsContext.Provider
+      value={{
+        onLessons: handleLessonsClick,
+        isMenuLessonsActive,
+        setIsMenuLessonsActive,
+      }}
+    >
+      <Router>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<LoginRegistration />} />
+          <Route path="/home" element={<HomePage />}></Route>
+          <Route path="/quiz" element={<QuizPage />} />
+          <Route path="/plan" element={<ChoosePlanPage />} />
+
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Router>
+    </LessonsContext.Provider>
   );
 };
 export default App;

@@ -27,7 +27,6 @@ function SideBar({ onLessons }: SideBarProps) {
     <div className="sidebar">
       <ProSidebar>
         <Profile />
-
         {/* Top Menu Items */}
         <div className="menu-top-bottom-container">
           <div className="menu-top">
