@@ -11,22 +11,19 @@ import {
 } from "@ant-design/icons";
 import "./SideBar.css";
 import Profile from "../components/Profile";
-import { use, useContext, useEffect, useState } from "react";
-import LessonsContext from "../context/LessonsContext";
-import { Link, useNavigate } from "react-router-dom";
-import NavigationContext from "../context/NavigationContext";
-import path from "path";
-// import { NavigationProvider } from "../context-providers/NavigationProvider";
-interface SideBarProps {
-  onLessons: () => void; // Define the expected prop type for onLessons
-  // navigate: (path: string) => void;
-}
 
-function SideBar({ onLessons }: SideBarProps) {
+interface SideBarProps {
+  onLessons: () => void;
+}
+interface SideBarProps {
+  onLessons: () => void;
+}
+const SideBar: React.FC<SideBarProps> = ({ onLessons }) => {
   return (
     <div className="sidebar">
       <ProSidebar>
         <Profile />
+
         {/* Top Menu Items */}
         <div className="menu-top-bottom-container">
           <div className="menu-top">
@@ -90,6 +87,6 @@ function SideBar({ onLessons }: SideBarProps) {
       </ProSidebar>
     </div>
   );
-}
+};
 
 export default SideBar;
