@@ -1,5 +1,4 @@
 
-
 import express, { Express } from 'express';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
@@ -7,6 +6,7 @@ import bodyParser from 'body-parser';
 import userRoutes from './routes/userRoutes';
 import emailRoutes from './routes/emailRoutes';
 import lessonsRoutes from "./routes/lessonsRoutes";
+import apiRoutes from './routes/apiRoutes'; // ייבוא של ה-Route החדש
 
 
 dotenv.config();
@@ -19,7 +19,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use("/lessons", lessonsRoutes);
 app.use('/user',userRoutes)
 app.use('/email',emailRoutes)
-
+app.use('/api', apiRoutes);
+app.get('/', (req, res) => {
+  res.status(200).send('Hello World!');
+})
 
 const initApplication = async (): Promise<Express> => {
   return new Promise<Express>((resolve, reject) => {

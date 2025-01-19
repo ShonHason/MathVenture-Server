@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
-  "module": "commonjs",
-  "esModuleInterop": true,
-  "target": "es6",
-  "moduleResolution": "node",
-  "sourceMap": true,
-  "outDir": "dist",
-  "strict": true,
+    "module": "es2022", // Changed to support top-level await
+    "esModuleInterop": true,
+    "target": "es2017", // Changed to ensure compatibility with top-level await
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "outDir": "dist",
+    "strict": true
   },
-  "lib": ["es2015"]
-  }
+  "lib": ["es2017"] // Updated to match the target
+}

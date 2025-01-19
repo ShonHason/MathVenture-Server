@@ -1,17 +1,16 @@
 import request from "supertest";
 import appInit from "../server";
 import mongoose from "mongoose";
-import e, { Express } from "express";
-import jwt, { JwtPayload } from 'jsonwebtoken';
+import  { Express } from "express";
 import userModel from "../modules/userModel";
-import { access } from "fs";
 import emailModel from "../modules/emailModel"
 let app: Express;
 
 
+
 beforeAll(async () => {
     app = await appInit.initApplication();
-//    await emailModel.deleteMany();
+    await emailModel.deleteMany();
     await userModel.deleteMany(); // Ensure this operation is awaited
     
     const response = await request(app).post('/user/register').send(userTest);

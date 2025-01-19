@@ -1,10 +1,9 @@
 import request from "supertest";
 import appInit from "../server";
 import mongoose from "mongoose";
-import e, { Express } from "express";
+import  { Express } from "express";
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import userModel from "../modules/userModel";
-import { access } from "fs";
 let app: Express;
 
 beforeAll(async () => {

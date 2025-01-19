@@ -53,7 +53,7 @@ const sendEmailAndSaveToDB = async (req: Request, res: Response): Promise<void> 
         text: message,
       };
 
-      //await sgMail.send(mailOptions);
+      await sgMail.send(mailOptions);
 
       // Step 3: Update the email status to "sent" in the database
       emailData.status = 'sent';

@@ -1,5 +1,5 @@
 import lessonsModel, { ILesson } from "../modules/lessonsModel";
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import { BaseController } from "./baseController";
 import mongoose from "mongoose";
 

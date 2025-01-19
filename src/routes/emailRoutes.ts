@@ -1,5 +1,5 @@
 import emailController from "../controllers/emailController";
-import express , { Request , Response , NextFunction } from "express";
+import express  from "express";
 import { userTokensMiddleware } from "../controllers/userController";
 const router  = express.Router();
 
