@@ -11,6 +11,9 @@ import {
 } from "@ant-design/icons";
 import "./SideBar.css";
 import Profile from "../components/Profile";
+import HelpContext from "../context/HelpContext";
+import { useContext, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface SideBarProps {
   onLessons: () => void;
@@ -19,6 +22,19 @@ interface SideBarProps {
   onLessons: () => void;
 }
 const SideBar: React.FC<SideBarProps> = ({ onLessons }) => {
+  const helpContext = useContext(HelpContext);
+
+  const navigate = useNavigate();
+  if (!helpContext) {
+    throw new Error("SideBar must be used within a LessonsContext.Provider");
+  }
+
+  const { onHelp, isMenuHelpActive, setIsMenuHelpActive } = helpContext;
+
+  useEffect(() => {
+    isMenuHelpActive ? navigate("/home/help") : navigate("/home");
+  }, [isMenuHelpActive, setIsMenuHelpActive]);
+
   return (
     <div className="sidebar">
       <ProSidebar>
@@ -28,7 +44,10 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons }) => {
         <div className="menu-top-bottom-container">
           <div className="menu-top">
             <Menu>
-              <MenuItem className="menu-item menu-item-home">
+              <MenuItem
+                className="menu-item menu-item-home"
+                onClick={() => navigate("/home")}
+              >
                 <HomeOutlined />
                 בית
               </MenuItem>
@@ -43,6 +62,7 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons }) => {
               <MenuItem
                 className="menu-item menu-item-help"
                 icon={<QuestionCircleOutlined />}
+                onClick={onHelp}
               >
                 עזרה
               </MenuItem>
