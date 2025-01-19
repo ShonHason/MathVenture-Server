@@ -4,19 +4,23 @@
   "description": "Mathventure is an interactive educational app that offers personalized math lessons, adapting to students' progress and providing step-by-step solutions with challenges tailored to their skill level.",
   "main": "app.js",
   "scripts": {
-    "build": "yarn --cwd client build && yarn --cwd server build",
-    "dev": "concurrently \"yarn --cwd client start\" \"yarn --cwd server devStart\""
+    "devStart": "nodemon ./src/app.ts", 
+    "build": "tsc",                   
+    "start": "node ./dist/app.js",
+    "check": "npx tsc && npx eslint .",  
+    "test": "tsc && jest --detectOpenHandles --forceExit --runInBand",
+    "testLessons": "jest --detectOpenHandles --forceExit --runInBand lessons.test.ts",
+    "testUsers": "jest --detectOpenHandles --forceExit --runInBand user.test.ts",
+    "testEmail": "tsc && jest --detectOpenHandles --forceExit email.test.ts "
   },
   "author": "Shon Hasson, Rotem Ziv, Dan Akrabi, Roey Biton",
   "license": "ISC",
   "dependencies": {
-    "@ant-design/icons": "^5.5.2",
     "@sendgrid/mail": "^8.1.4",
     "@types/react-router-dom": "^5.3.3",
     "antd": "^5.23.1",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",
-    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
@@ -29,23 +33,20 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^7.1.2",
-    "react-scripts": "^5.0.1",
     "sendgrid": "^5.2.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
+    "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.7",
-    "@types/node": "^22.10.5",
+    "@types/node": "^22.10.7",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "@typescript-eslint/parser": "^8.19.1",
-    "concurrently": "^9.1.2",
     "eslint": "^9.17.0",
     "globals": "^15.14.0",
     "jest": "^29.7.0",
@@ -53,7 +54,7 @@
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.2",
+    "typescript": "^5.7.3",
     "typescript-eslint": "^8.19.1"
   }
 }
