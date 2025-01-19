@@ -1,13 +1,19 @@
 {
   "compilerOptions": {
-  "module": "commonjs",
-  "esModuleInterop": true,
-  "target": "es6",
-  "moduleResolution": "node",
-  "sourceMap": true,
-  "outDir": "dist",
-  "strict": true,
-  "jsx": "react-jsx"
+    "module": "commonjs", // CommonJS module system
+    "esModuleInterop": true, // Enable interop between CommonJS and ES modules
+    "target": "es6", // Transpile to ES6 syntax
+    "moduleResolution": "node", // Resolve modules in Node.js style
+    "sourceMap": true, // Generate source maps for debugging
+    "outDir": "dist", // Output directory for compiled files
+    "strict": true, // Enable strict type-checking options
+    "jsx": "react-jsx", // Use the new React JSX transform (React 17+)
+    "skipLibCheck": true, // Skip type checks on library declaration files
+    "resolveJsonModule": true, // Allow importing JSON files as modules
+    "allowSyntheticDefaultImports": true, // Allow default imports from modules without default exports
+    "forceConsistentCasingInFileNames": true // Ensure consistent file naming casing
   },
-  "lib": ["dom", "esnext"]
+  "include": ["src"], // Include all files in the `src` folder
+  "exclude": ["node_modules", "dist"], // Exclude `node_modules` and `dist` from compilation
+  "lib": ["dom", "esnext"] // Include DOM and ESNext library definitions
 }

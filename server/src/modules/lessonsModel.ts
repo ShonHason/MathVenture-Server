@@ -3,7 +3,7 @@ import { MathTopics } from "./enum/EducationalTopics";
 import { progressType } from "./enum/progress";
 
 export interface ILesson extends Document {
-  userId: String;
+  userId: string;
   startTime: Date;
   endTime: Date;
   progress: progressType;
