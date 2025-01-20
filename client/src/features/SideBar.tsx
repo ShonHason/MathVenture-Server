@@ -20,7 +20,10 @@ interface SideBarProps {
   navigate: (path: string) => void;
 }
 
-const SideBar: React.FC<SideBarProps> = ({ onLessons, navigate }) => {
+const SideBar: React.FC<SideBarProps> = ({
+  onLessons,
+  navigate: navigateProp,
+}) => {
   const helpContext = useContext(HelpContext);
 
   const navigate = useNavigate();
