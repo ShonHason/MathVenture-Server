@@ -6,6 +6,8 @@ import {
   FacebookOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
+import full_logo from "../images/full_logo.png";
+
 const { Title } = Typography;
 
 interface FormValues {
@@ -49,14 +51,21 @@ export const LoginRegistration: React.FC = () => {
           boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
         }}
       >
+        <Title style={{ textAlign: "center", marginBottom: "20px" }}>
+          <img
+            src={full_logo}
+            alt="Mathventure Icon"
+            style={{ width: "300px", height: "auto" }}
+          />
+        </Title>
+        {/* <Title level={2} style={{ textAlign: "center" }}>
+          Welcome to Mathventure!{" "}
+        </Title> */}
         <Title level={2} style={{ textAlign: "center" }}>
-          Mathventure{" "}
+          !ברוכים הבאים למטיברס
         </Title>
         <Title level={2} style={{ textAlign: "center" }}>
-          ברוך הבא למטיברס!{" "}
-        </Title>
-        <Title level={2} style={{ textAlign: "center" }}>
-          :בחר אחת מן האופציות הבאות{" "}
+          :בחרו אחת מן האופציות הבאות{" "}
         </Title>
         <Tabs
           defaultActiveKey="1"
