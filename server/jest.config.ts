@@ -1,6 +1,11 @@
-/** @type {import('ts-jest/dist/types').InitialOptionsTsJest} */
-export default {
-    preset : 'ts-jest',
+module.exports = {
+    preset: 'ts-jest',
     testEnvironment: 'node',
-    roots: ["<rootDir>/src"],
-};
+    transform: {
+      '^.+\\.tsx?$': 'ts-jest',
+    },
+    testMatch: [
+      '**/server/src/tests/**/*.test.ts', // Adjust to your directory structure
+    ],
+  };
+  

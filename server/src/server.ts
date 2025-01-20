@@ -6,6 +6,7 @@ import path from 'path';
 import userRoutes from './routes/userRoutes';
 import emailRoutes from './routes/emailRoutes';
 import lessonsRoutes from "./routes/lessonsRoutes";
+import apiRoutes from './routes/apiRoutes'; // ייבוא של ה-Route החדש
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use("/lessons", lessonsRoutes);
 app.use('/user', userRoutes);
 app.use('/email', emailRoutes);
+app.use('/api', apiRoutes);
 
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.resolve(__dirname, '../client/build')));
