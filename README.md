@@ -23,7 +23,7 @@ If you are encountering issues with the newer versions of react-pro-sidebar, ins
 
 yarn add react-pro-sidebar@8.0.0
 
-Alternatively, if you need to install version 7.1 specifically, you can run:
+Alternatively, if you need to install version 0.7.1 specifically, you can run:
 
 yarn add react-pro-sidebar@7.1
 
