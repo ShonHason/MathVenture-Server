@@ -11,41 +11,74 @@ import {
 } from "@ant-design/icons";
 import "./SideBar.css";
 import Profile from "../components/Profile";
-import { use, useContext, useEffect, useState } from "react";
-import LessonsContext from "../context/LessonsContext";
-import { Link, useNavigate } from "react-router-dom";
-import NavigationContext from "../context/NavigationContext";
+import HelpContext from "../context/HelpContext";
+import { useContext, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import path from "path";
-// import { NavigationProvider } from "../context-providers/NavigationProvider";
+
 interface SideBarProps {
-  onLessons: () => void; // Define the expected prop type for onLessons
-  // navigate: (path: string) => void;
+  // onLessons: () => void;
 }
 
-function SideBar({ onLessons }: SideBarProps) {
+const SideBar: React.FC<SideBarProps> = () => {
+  const helpContext = useContext(HelpContext);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isActive = (path: string) => {
+    return location.pathname.includes(path);
+  };
+
+  if (!helpContext) {
+    throw new Error("SideBar must be used within a LessonsContext.Provider");
+  }
+
+  const { onHelp, isMenuHelpActive, setIsMenuHelpActive } = helpContext;
+
+  useEffect(() => {
+    isMenuHelpActive ? navigate("/home/help") : navigate("/home");
+  }, [isMenuHelpActive, setIsMenuHelpActive]);
+
+  const handleLogout = () => {
+    navigate("/login");
+  };
+
   return (
     <div className="sidebar">
       <ProSidebar>
         <Profile />
+
         {/* Top Menu Items */}
         <div className="menu-top-bottom-container">
           <div className="menu-top">
             <Menu>
-              <MenuItem className="menu-item menu-item-home">
+              <MenuItem
+                className="menu-item menu-item-home"
+                onClick={() => navigate("/home")}
+                active={
+                  isActive("/home") &&
+                  !isActive("/home/lessons") &&
+                  !isActive("/home/help")
+                }
+              >
                 <HomeOutlined />
                 בית
               </MenuItem>
               <MenuItem
                 className="menu-item menu-item-lessons"
                 icon={<BookOutlined />}
-                onClick={onLessons}
+                onClick={() => navigate("/home/lessons")}
+                active={isActive("/home/lessons")}
               >
                 שיעורים
-                {/* {handleLessonsClick()} */}
               </MenuItem>
               <MenuItem
                 className="menu-item menu-item-help"
                 icon={<QuestionCircleOutlined />}
+                onClick={() => navigate("/home/help")}
+                active={isActive("/home/help")}
+                // onClick={onHelp}
               >
                 עזרה
               </MenuItem>
@@ -70,6 +103,8 @@ function SideBar({ onLessons }: SideBarProps) {
               <MenuItem
                 className="menu-item menu-item-profile"
                 icon={<UserOutlined />}
+                onClick={() => navigate("/home/profile")}
+                active={isActive("/home/profile")}
               >
                 פרופיל
               </MenuItem>
@@ -77,10 +112,12 @@ function SideBar({ onLessons }: SideBarProps) {
                 title="הגדרות"
                 className="menu-item menu-item-settings"
                 icon={<SettingOutlined />}
+                onClick={() => navigate("/home/settings")}
               />
               <MenuItem
                 className="menu-item menu-item-logout"
                 icon={<LogoutOutlined />}
+                onClick={handleLogout} // Call handleLogout on click
               >
                 התנתק/י
               </MenuItem>
@@ -90,6 +127,5 @@ function SideBar({ onLessons }: SideBarProps) {
       </ProSidebar>
     </div>
   );
-}
-
+};
 export default SideBar;
