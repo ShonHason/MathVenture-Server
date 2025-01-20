@@ -13,17 +13,23 @@ import "./SideBar.css";
 import Profile from "../components/Profile";
 import HelpContext from "../context/HelpContext";
 import { useContext, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import path from "path";
 
 interface SideBarProps {
-  onLessons: () => void;
-  navigate: (path: string) => void;
+  // onLessons: () => void;
 }
 
-const SideBar: React.FC<SideBarProps> = ({ onLessons, navigate }) => {
+const SideBar: React.FC<SideBarProps> = () => {
   const helpContext = useContext(HelpContext);
 
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isActive = (path: string) => {
+    return location.pathname.includes(path);
+  };
+
   if (!helpContext) {
     throw new Error("SideBar must be used within a LessonsContext.Provider");
   }
@@ -50,6 +56,11 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons, navigate }) => {
               <MenuItem
                 className="menu-item menu-item-home"
                 onClick={() => navigate("/home")}
+                active={
+                  isActive("/home") &&
+                  !isActive("/home/lessons") &&
+                  !isActive("/home/help")
+                }
               >
                 <HomeOutlined />
                 בית
@@ -57,14 +68,17 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons, navigate }) => {
               <MenuItem
                 className="menu-item menu-item-lessons"
                 icon={<BookOutlined />}
-                onClick={onLessons}
+                onClick={() => navigate("/home/lessons")}
+                active={isActive("/home/lessons")}
               >
                 שיעורים
               </MenuItem>
               <MenuItem
                 className="menu-item menu-item-help"
                 icon={<QuestionCircleOutlined />}
-                onClick={onHelp}
+                onClick={() => navigate("/home/help")}
+                active={isActive("/home/help")}
+                // onClick={onHelp}
               >
                 עזרה
               </MenuItem>
@@ -89,6 +103,8 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons, navigate }) => {
               <MenuItem
                 className="menu-item menu-item-profile"
                 icon={<UserOutlined />}
+                onClick={() => navigate("/home/profile")}
+                active={isActive("/home/profile")}
               >
                 פרופיל
               </MenuItem>
@@ -96,6 +112,7 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons, navigate }) => {
                 title="הגדרות"
                 className="menu-item menu-item-settings"
                 icon={<SettingOutlined />}
+                onClick={() => navigate("/home/settings")}
               />
               <MenuItem
                 className="menu-item menu-item-logout"
@@ -111,5 +128,4 @@ const SideBar: React.FC<SideBarProps> = ({ onLessons, navigate }) => {
     </div>
   );
 };
-
 export default SideBar;

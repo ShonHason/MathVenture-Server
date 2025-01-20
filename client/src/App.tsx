@@ -13,54 +13,36 @@ import LessonsContext from "./context/LessonsContext";
 import QuizPage from "./pages/quiz";
 import ChoosePlanPage from "./pages/plan";
 import HelpPage from "./pages/HelpPage";
-import HelpContext from "./context/HelpContext";
+// import HelpContext from "./context/HelpContext";
 // import Help from "./pages/Help";
-
+import ProfilePage from "./pages/ProfilePage";
+import SettingsPage from "./pages/SettingsPage";
 const App: React.FC = () => {
-  const [isMenuLessonsActive, setIsMenuLessonsActive] = useState(false);
-  const [isMenuHelpActive, setIsMenuHelpActive] = useState(false);
-
   const [topics, setTopics] = useState<string[]>([]);
-  const handleLessonsClick = () => {
-    setIsMenuLessonsActive((prev) => !prev);
-  };
-
-  const handleHelpClick = () => {
-    setIsMenuHelpActive((prev) => !prev);
-  };
 
   return (
-    <HelpContext.Provider
+    <LessonsContext.Provider
       value={{
-        onHelp: handleHelpClick,
-        isMenuHelpActive,
-        setIsMenuHelpActive,
+        topics,
+        setTopics,
       }}
     >
-      <LessonsContext.Provider
-        value={{
-          onLessons: handleLessonsClick,
-          isMenuLessonsActive,
-          setIsMenuLessonsActive,
-          topics,
-          setTopics,
-        }}
-      >
-        <Router>
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<LoginRegistration />} />
-            <Route path="/home" element={<HomePage />}>
-              <Route path="lessons" element={<Lessons />} />
-              <Route path="help" element={<HelpPage />} />
-            </Route>
-            <Route path="/quiz" element={<QuizPage />} />
-            <Route path="/plan" element={<ChoosePlanPage />} />
-            <Route path="*" element={<PageNotFound />} />
-          </Routes>
-        </Router>
-      </LessonsContext.Provider>
-    </HelpContext.Provider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<LoginRegistration />} />
+          <Route path="/home" element={<HomePage />}>
+            <Route path="lessons" element={<Lessons />} />
+            <Route path="help" element={<HelpPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+          <Route path="/quiz" element={<QuizPage />} />
+          <Route path="/plan" element={<ChoosePlanPage />} />
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </Router>
+    </LessonsContext.Provider>
   );
 };
 
