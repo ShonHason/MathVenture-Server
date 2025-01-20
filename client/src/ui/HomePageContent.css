@@ -1,4 +1,4 @@
-.content {
+.homepage-content {
   width: 100%;
   max-width: 800px;
   height: auto;
@@ -12,7 +12,7 @@
   gap: 1.5rem;
 }
 
-.content p {
+.homepage-content p {
   color: #ecf0f1;
   font-size: 1.5rem;
   font-weight: bold;

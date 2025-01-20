@@ -18,6 +18,8 @@ declare module "react-pro-sidebar" {
   }
 
   export interface MenuItemProps {
+    active?: boolean | React.ReactElement; // Ensure active property can be of type boolean or React element
+    isActive?: boolean; // Add isActive property
     onClick?: any;
     children?: React.ReactNode;
     icon?: React.ReactNode; // Add icon property
@@ -29,6 +31,7 @@ declare module "react-pro-sidebar" {
     title?: React.ReactNode; // Add title property
     icon?: React.ReactNode; // Add icon property
     className?: string; // Add className property
+    onClick?: () => void | Promise<void>; // Add onClick property
   }
 
   export const ProSidebar: React.FC<ProSidebarProps>;

@@ -1,16 +1,3 @@
-// import { createContext, Dispatch, SetStateAction } from "react";
-
-// export interface HelpContextType {
-//   onHelp: () => void;
-//   isMenuHelpActive: boolean;
-//   setIsMenuHelpActive: React.Dispatch<React.SetStateAction<boolean>>;
-// }
-
-// // Provide a default value for TypeScript, even if it is temporary
-// const HelpContext = createContext<HelpContextType | null>(null);
-
-// export default HelpContext;
-
 import React, { createContext } from "react";
 
 export interface HelpContextType {

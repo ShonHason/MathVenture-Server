@@ -38,7 +38,7 @@ const HomePageContent: React.FC = () => {
   };
 
   return (
-    <div className="content">
+    <div className="homepage-content">
       <p className="section-title">:השיעורים שלי</p>
       <div className={`my-lessons ${topics.length === 0 ? "empty" : ""}`}>
         {topics.length === 0 ? (
