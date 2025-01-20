@@ -1,3 +1,4 @@
+![full logo](https://github.com/user-attachments/assets/0c1353dd-76bd-40e2-94a9-82c14845ed0e)
 # MathVenture
 # Project Setup and Installation Guide
 
@@ -23,7 +24,7 @@ If you are encountering issues with the newer versions of react-pro-sidebar, ins
 
 yarn add react-pro-sidebar@8.0.0
 
-Alternatively, if you need to install version 7.1 specifically, you can run:
+Alternatively, if you need to install version 0.7.1 specifically, you can run:
 
 yarn add react-pro-sidebar@7.1
 

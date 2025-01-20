@@ -10085,10 +10085,10 @@ react-is@^18.0.0, react-is@^18.2.0:
   resolved "https://registry.npmjs.org/react-is/-/react-is-18.3.1.tgz"
   integrity sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==
 
-react-pro-sidebar@^0.7.1:
-  version "0.7.1"
-  resolved "https://registry.yarnpkg.com/react-pro-sidebar/-/react-pro-sidebar-0.7.1.tgz#0b5edca0809ff6a23bda188c5db370f880690ee7"
-  integrity sha512-Iy1X8ce4t5Vqz4CsyzjwokGUE3/IObgmYzS0ins7/2eWKle0SMUPaWdgMKFIVjtVrMr5vmjPbRicq8FxnVaf8A==
+react-pro-sidebar@^0.7.0:
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/react-pro-sidebar/-/react-pro-sidebar-0.7.0.tgz#a10d8ec5fcb608026e09a28bb24c0a0bbf527ddb"
+  integrity sha512-Vbyo5mTF7RIo2MsnUH3P6ZjuDXYHvCliTdNrcG9Ohn/RnUegaIIt02nAQmOmRqkvVFA0cwHWmXOOsorgsTzbdw==
   dependencies:
     "@popperjs/core" "^2.4.0"
     classnames "^2.2.6"
