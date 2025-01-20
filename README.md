@@ -1,3 +1,4 @@
+![full logo](https://github.com/user-attachments/assets/0c1353dd-76bd-40e2-94a9-82c14845ed0e)
 # MathVenture
 # Project Setup and Installation Guide
 
