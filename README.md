@@ -17,6 +17,10 @@ Install the required packages for the project:
 
 yarn add react-scripts
 
+yarn add @google-cloud/speech microphone-stream
+
+yarn add -D @types/microphone-stream
+
 yarn add react-pro-sidebar
 
 ## 4. Install Additional Packages:
