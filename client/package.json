@@ -15,7 +15,7 @@
   "dependencies": {
     "@sendgrid/mail": "^8.1.4",
     "@types/react-router-dom": "^5.3.3",
-    "antd": "^5.23.1",
+    "antd": "^5.23.2",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",
     "dotenv": "^16.4.7",
@@ -27,10 +27,10 @@
     "node": "^23.5.0",
     "nodemailer": "^6.9.16",
     "nodemon": "^3.1.9",
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "react-pro-sidebar": "^0.7.1",
-    "react-router-dom": "^7.1.2",
+    "react-router-dom": "^7.1.3",
     "react-scripts": "^5.0.1",
     "sendgrid": "^5.2.3"
   },
@@ -55,8 +55,8 @@
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.2",
-    "typescript-eslint": "^8.19.1"
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0"
   },
   "browserslist": {
     "production": [
