@@ -17,6 +17,7 @@ import HelpPage from "./pages/HelpPage";
 // import Help from "./pages/Help";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
+import { ChatPage } from "./pages/chat";
 const App: React.FC = () => {
   const [topics, setTopics] = useState<string[]>([]);
 
@@ -39,6 +40,7 @@ const App: React.FC = () => {
           </Route>
           <Route path="/quiz" element={<QuizPage />} />
           <Route path="/plan" element={<ChoosePlanPage />} />
+          <Route path="chat" element={<ChatPage />} />
           <Route path="*" element={<PageNotFound />} />
         </Routes>
       </Router>
