@@ -1,6 +1,12 @@
 import mongoose from "mongoose";
+
 const userSchema = new mongoose.Schema(
   {
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     email: {
       type: String,
       required: true,
@@ -18,26 +24,39 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: false,
     },
+    parent_name: {            
+      type: String,
+      required: false,
+    },
     parent_phone: {
       type: String,
       required: false,
     },
     grade: {
       type: String,
-      required: true,
+      required: false,
       enum: ["א", "ב", "ג", "ד", "ה", "ו", "ז", "ח", "ט"],
+    },
+    rank: {
+      type: String,
+      required: false,
+      default: "1",
+      enum: ["1", "2", "3", "4", "5"],
     },
     dateOfBirth: {
       type: Date,
-      required: true,
+      required: false,
+    },
+    imageUrl: {
+      type: String,
+      required: false,
     },
   },
   {
     toJSON: {
       transform: (doc, ret) => {
-        // Ensure _id appears first in the JSON response
         const { _id, ...rest } = ret;
-        return { _id, ...rest }; // Return _id first followed by the rest of the fields
+        return { _id, ...rest };
       },
     },
   }

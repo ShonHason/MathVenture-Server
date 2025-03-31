@@ -2,11 +2,34 @@ import lessonsModel, { ILesson } from "../modules/lessonsModel";
 import { Request, Response, NextFunction } from "express";
 import { BaseController } from "./baseController";
 import mongoose from "mongoose";
+import { generateLessonContent } from "../services/openaiService";
 
 class LessonsController extends BaseController<ILesson> {
   constructor() {
     super(lessonsModel);
   }
+  async startLesson(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, grade, rank, subject } = req.body;
+
+      // Create a prompt tailored to the user's information
+      const prompt = `You are an expert math teacher for grade ${grade} students. 
+Provide an engaging introduction lesson on ${subject} that is interactive and clear.`;
+
+      // Generate lesson content using the AI service
+      const lessonContent = await generateLessonContent(prompt);
+
+    
+
+      // Return the generated content
+      res.status(200).json({ lessonContent });
+    } catch (error: any) {
+      console.error("Error in startLesson:", error);
+      res.status(500).json({ error: "Failed to generate lesson content" });
+    }
+  }
+
+
 
   async getByUserId(req: Request, res: Response) {
     const userId = req.params.userId;
