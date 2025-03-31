@@ -5,21 +5,21 @@ import jwt, { JwtPayload } from 'jsonwebtoken';
 
 const register = async (req: Request, res: Response) => {
 
-  const email  = req.body.email;
+  const parentEmail  = req.body.parent_email;
   const password  = req.body.password;
-  const name = req.body.name;
-  const grade = req.body.grade;
-  if (!email || !password || email.trim().length == 0 || password.trim().length == 0) {
+  const parentName = req.body.parent_name;
+  // const grade = req.body.grade;
+  if (!parentEmail || !password || parentEmail.trim().length == 0 || password.trim().length == 0) {
     res.status(400).send('Email and password are required');
     return;
 
   }
-  if(!name || name.trim().length === 0 || !grade ){
+  if(!parentName || parentName.trim().length === 0  ){
     res.status(400).send('Please fill all the fields');
     return;
 
   }
-  const user = await userModel.findOne({email : email});
+  const user = await userModel.findOne({email : parentEmail});
   if (user) {
     res.status(400).send('User already exists');
     return;
@@ -30,7 +30,7 @@ const register = async (req: Request, res: Response) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     const newUser = await userModel.create ({
-      email: email,
+      email: parentEmail,
       password: hashedPassword ,
       name: req.body.name,
       refreshTokens: [],
@@ -219,6 +219,53 @@ const getUserProfile = async (req: Request, res: Response) => {
     return;
   } 
 }
+
+const endOfRegistration = async (req: Request, res: Response) => {
+  // Extract the fields from the request body
+  const {
+    userId,        // Mongo _id from registration
+    imageUrl,
+    grade,
+    rank,
+    dateOfBirth,
+    parent_email,
+    parent_name,
+    parent_phone,
+  } = req.body;
+
+  // Validate that we received a userId
+  if (!userId) {
+    res.status(400).send("User ID is required");
+    return;
+  }
+
+  try {
+    // Find the user by ID and update the additional registration fields
+    const updatedUser = await userModel.findByIdAndUpdate(
+      userId,
+      {
+        imageUrl,
+        grade,
+        rank,
+        dateOfBirth,
+        parent_email,
+        parent_name,
+        parent_phone,
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      res.status(404).send("User not found");
+      return;
+    }
+
+    res.status(200).send(updatedUser);
+  } catch (error) {
+    console.error("Error in endOfRegistration:", error);
+    res.status(500).send("Server error during endOfRegistration");
+  }
+};
 const deleteUser = async (req: Request, res: Response) => {
   const decodedPayload = jwt.decode(req.body.accessToken);
 
@@ -264,4 +311,7 @@ export const userTokensMiddleware =  (req: Request, res: Response, next: NextFun
   } 
 }
 
-export default {register , login, logout , updatePassword , updateParentsMail, getUserProfile , deleteUser};  
+export default {register , login, logout ,endOfRegistration, updatePassword , updateParentsMail, getUserProfile , deleteUser};  
+
+
+// updateEndOfQuiz ( kidEmail:email  username:username imageUrl, grade,rank,parent_phone)
