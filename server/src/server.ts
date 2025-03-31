@@ -3,16 +3,24 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import bodyParser from "body-parser";
 import path from "path";
+import cors from "cors"; // הוסף את הייבוא הזה
 import userRoutes from "./routes/userRoutes";
 import emailRoutes from "./routes/emailRoutes";
 import lessonsRoutes from "./routes/lessonsRoutes";
-import apiRoutes from "./routes/apiRoutes"; // ייבוא של ה-Route החדש
+import apiRoutes from "./routes/apiRoutes";
 import swaggerUI from "swagger-ui-express";
 import swaggerJsDoc from "swagger-jsdoc";
 
 dotenv.config();
 
 const app: Express = express();
+
+// הוספת CORS middleware - חשוב לשים את זה לפני שאר ה-middlewares
+app.use(cors({
+  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));

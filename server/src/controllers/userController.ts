@@ -2,42 +2,44 @@ import userModel from "../modules/userModel";
 import { Request, Response , NextFunction } from "express";
 import bcrypt from 'bcrypt'
 import jwt, { JwtPayload } from 'jsonwebtoken';
+import { r } from "react-router/dist/development/fog-of-war-Ckdfl79L";
 
 const register = async (req: Request, res: Response) => {
 
-  const parentEmail  = req.body.parent_email;
+  const email  = req.body.email;
   const password  = req.body.password;
-  const parentName = req.body.parent_name;
-  // const grade = req.body.grade;
-  if (!parentEmail || !password || parentEmail.trim().length == 0 || password.trim().length == 0) {
+  const username = req.body.username;
+
+    if (!email || !password || email.trim().length == 0 || password.trim().length == 0) {
     res.status(400).send('Email and password are required');
     return;
 
   }
-  if(!parentName || parentName.trim().length === 0  ){
+  if(!username || username.trim().length === 0  ){
     res.status(400).send('Please fill all the fields');
     return;
 
   }
-  const user = await userModel.findOne({email : parentEmail});
+  const user = await userModel.findOne({email : email});
   if (user) {
+    console.log("User already exists");
+    console.log("User:" + user);
     res.status(400).send('User already exists');
     return;
 
   }
-  
+  console.log("Creating new user");
+  console.log("email: " + email);
+  console.log("password: " + password);
   try {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     const newUser = await userModel.create ({
-      email: parentEmail,
+      email: email,
       password: hashedPassword ,
-      name: req.body.name,
+      username: username,
       refreshTokens: [],
-      parent_email: req.body.parent_email,
-      parent_phone: req.body.parent_phone,
-      grade: req.body.grade,
-      dateOfBirth: req.body.dateOfBirth
+     
       });
     const tokens = generateTokens(newUser._id.toString());
     if(!tokens){
@@ -232,7 +234,8 @@ const endOfRegistration = async (req: Request, res: Response) => {
     parent_name,
     parent_phone,
   } = req.body;
-
+  console.log("endOfRegistration");
+  console.log("Body: " + req.body);
   // Validate that we received a userId
   if (!userId) {
     res.status(400).send("User ID is required");
@@ -259,13 +262,15 @@ const endOfRegistration = async (req: Request, res: Response) => {
       res.status(404).send("User not found");
       return;
     }
-
+    console.log("Finished Quiz");
     res.status(200).send(updatedUser);
   } catch (error) {
     console.error("Error in endOfRegistration:", error);
     res.status(500).send("Server error during endOfRegistration");
   }
 };
+
+
 const deleteUser = async (req: Request, res: Response) => {
   const decodedPayload = jwt.decode(req.body.accessToken);
 
