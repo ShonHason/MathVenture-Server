@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema(
     username: {
       type: String,
       required: true,
-      unique: true,
+      unique: false,
     },
     email: {
       type: String,
@@ -41,7 +41,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: false,
       default: "1",
-      enum: ["1", "2", "3", "4", "5"],
+      enum: ["1", "2", "3"],
     },
     dateOfBirth: {
       type: Date,

@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Mathventure is an interactive educational app that offers personalized math lessons, adapting to students' progress and providing step-by-step solutions with challenges tailored to their skill level.",
   "main": "app.js",
-  
   "scripts": {
     "build": "yarn --cwd server build",
     "dev": "yarn --cwd server devStart"
