@@ -268,7 +268,6 @@ const endOfRegistration = async (req: Request, res: Response) => {
     }
     console.log("Finished Quiz");
     console.log("User: " + updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
     res.status(200).send(updatedUser);
 
   } catch (error) {
