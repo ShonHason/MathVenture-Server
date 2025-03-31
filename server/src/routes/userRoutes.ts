@@ -324,5 +324,6 @@ router.put(
 router.delete("/deleteUser", userTokensMiddleware, userController.deleteUser);
 
 router.put("/endOfRegistration", userController.endOfRegistration);
-
+  
+router.post("/refresh", userController.refresh);
 export default router;
