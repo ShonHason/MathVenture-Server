@@ -267,7 +267,10 @@ const endOfRegistration = async (req: Request, res: Response) => {
       return;
     }
     console.log("Finished Quiz");
+    console.log("User: " + updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
     res.status(200).send(updatedUser);
+
   } catch (error) {
     console.error("Error in endOfRegistration:", error);
     res.status(500).send("Server error during endOfRegistration");
@@ -320,7 +323,75 @@ export const userTokensMiddleware =  (req: Request, res: Response, next: NextFun
   } 
 }
 
-export default {register , login, logout ,endOfRegistration, updatePassword , updateParentsMail, getUserProfile , deleteUser};  
+
+const refresh = async (req: Request, res: Response) => {
+  //validity of the refresh token
+  const refreshToken = req.body.refreshToken;
+  if (!refreshToken) {
+    res.status(400).send("Missing Refresh Token");
+    return;
+  }
+  if (!process.env.TOKEN_SECRET) {
+    res.status(500).send("Missing Token Secret");
+    return;
+  }
+
+  jwt.verify(
+    refreshToken,
+    process.env.TOKEN_SECRET,
+    async (err: any, data: any) => {
+      if (err) {
+        res.status(403).send("Invalid Refresh Token");
+        return;
+      }
+
+      //find the user
+
+      const payload = data as TokenPayload;
+      try {
+        const user = await userModel.findById(payload._id);
+        if (!user) {
+          res.status(404).send("Invalid Refresh Token");
+          return;
+        }
+        //check if the refresh token is in the user's refresh token list
+
+        if (!user.refreshTokens || !user.refreshTokens.includes(refreshToken)) {
+          user.refreshTokens = [];
+          await user.save();
+          res.status(400).send("Invalid Refresh Token");
+          return;
+        }
+        //generate a new access token
+
+        const newTokens = generateTokens(user._id.toString());
+        if (!newTokens) {
+          user.refreshTokens = [];
+          await user.save();
+          res.status(500).send("Missing Token Secret");
+          return;
+        }
+        //delete the old refresh token
+        user.refreshTokens = user.refreshTokens.filter(
+          (token) => token !== refreshToken
+        );
+        //save the new refresh token
+        user.refreshTokens.push(newTokens.refreshToken);
+        await user.save();
+        //send the new access token and refresh token to the user
+        res.status(200).send({
+          accessToken: newTokens.accessToken,
+          refreshToken: newTokens.refreshToken,
+        });
+      } catch (err) {
+        console.log(err);
+        res.status(400).send("invalid token");
+      }
+    }
+  );
+};
+
+export default {register , login, logout ,endOfRegistration, updatePassword , updateParentsMail, getUserProfile , deleteUser , refresh};  
 
 
 // updateEndOfQuiz ( kidEmail:email  username:username imageUrl, grade,rank,parent_phone)
