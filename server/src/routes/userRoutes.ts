@@ -323,4 +323,6 @@ router.put(
  */
 router.delete("/deleteUser", userTokensMiddleware, userController.deleteUser);
 
+router.patch("/endOfRegistration", userController.endOfRegistration);
+
 export default router;
