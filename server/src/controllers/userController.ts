@@ -59,7 +59,7 @@ const register = async (req: Request, res: Response) => {
     });
     return;
   } catch (error) {
-    console.log("Problem with creating a new user");
+    console.log("Problem with creating a new user", error);
     res.status(400).send(error);
     return;
 
@@ -114,10 +114,14 @@ const login = async (req: Request, res: Response) => {
   user.refreshTokens.push(tokens.refreshToken);
   await user.save();
   res.status(200).send({
-    email : user.email,
-    _id : user._id,
-    refreshToken : tokens.refreshToken,
-    accessToken : tokens.accessToken,
+    email: user.email,
+    _id: user._id,
+    username: user.username,   // Return username if needed
+    imageUrl: user.imageUrl,   // Return imageUrl if needed
+    grade: user.grade,         // Return grade if needed
+    rank: user.rank,           // Return rank if needed
+    refreshToken: tokens.refreshToken,
+    accessToken: tokens.accessToken,
   });
   return;
 }

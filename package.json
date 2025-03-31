@@ -4,8 +4,8 @@
   "description": "Mathventure is an interactive educational app that offers personalized math lessons, adapting to students' progress and providing step-by-step solutions with challenges tailored to their skill level.",
   "main": "app.js",
   "scripts": {
-    "build": "yarn --cwd server build",
-    "dev": "yarn --cwd server devStart"
+    "build": "yarn --cwd client build && yarn --cwd server build",
+    "dev": "concurrently \"yarn --cwd client start\" \"yarn --cwd server devStart\""
   },
   "author": "Shon Hasson, Rotem Ziv, Dan Akrabi, Roey Biton",
   "license": "ISC",
@@ -29,7 +29,6 @@
     "node": "^22.13.0",
     "nodemailer": "^6.9.16",
     "nodemon": "^3.1.9",
-    "openai": "^4.90.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-pro-sidebar": "^0.7.1",
@@ -58,7 +57,7 @@
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
-    "typescript": "^4.9.5",
+    "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0"
   }
 }
