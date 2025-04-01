@@ -1,25 +1,20 @@
-import express, { Request, Response } from "express";
-import Recording from '../controllers/APIController/sttController';  // פונקציה לביצוע תמלול
-import { textToSpeechConvert } from '../controllers/APIController/tssController';  // פונקציה להמרת טקסט לדיבור
-const router = express.Router();
+import { Router, Request, Response } from 'express';
+import { askQuestion } from '../controllers/openAiApi';
+import { textToSpeechConvert } from '../controllers/APIController/ttsController';
 
-router.use(express.json());
+const router = Router();
 
-// ה-Route שמאזין ל-POST בקשה ומבצע תמלול בזמן אמת
-router.post('/speak', async (req: Request, res: Response) => {
+router.post('/chat', async (req: Request, res: Response) => {
   try {
-    // מבצע את ההקלטה וההתמלול
-    const transcript = await Recording();
+    const { question, context } = req.body;
+    console.log('Received question:', question);
+    console.log('Context:', context);
 
-    // מחזיר תשובה ללקוח עם התמלול
-    res.status(200).json({
-      message: 'תמלול הושלם בהצלחה',
-      transcript: transcript,  // התמלול שנשמע מהמיקרופון
-    });
+    const answer = await askQuestion(question, context);
+    res.json({ answer });
   } catch (error) {
-    // טיפול בשגיאה במקרה של כשלון
-    console.error('שגיאה בביצוע התמלול:', error);
-    res.status(500).json({ message: 'שגיאה בתמלול', error: error instanceof Error ? error.message : 'שגיאה לא ידועה' });
+    console.error('Error processing chat request:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
