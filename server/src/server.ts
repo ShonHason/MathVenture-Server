@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import bodyParser from "body-parser";
 import path from "path";
-import cors from "cors"; // הוסף את הייבוא הזה
+import cors from "cors";
 import userRoutes from "./routes/userRoutes";
 import emailRoutes from "./routes/emailRoutes";
 import lessonsRoutes from "./routes/lessonsRoutes";
@@ -15,15 +15,20 @@ dotenv.config();
 
 const app: Express = express();
 
-// הוספת CORS middleware - חשוב לשים את זה לפני שאר ה-middlewares
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// הגדרות CORS – חשוב להגדיר לפני שאר ה-middlewares
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
+// Body Parser
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// הגדרת Swagger לדוקומנטציה (לפי הצורך)
 const options = {
   definition: {
     openapi: "3.0.0",
@@ -32,13 +37,14 @@ const options = {
       version: "1.0.0",
       description: "REST server including authentication using JWT",
     },
-    servers: [{ url: `http://localhost:${process.env.PORT} ` }],
+    servers: [{ url: `http://localhost:${process.env.PORT}` }],
   },
   apis: ["./src/routes/*.ts"],
 };
 const specs = swaggerJsDoc(options);
 app.use("/swagger", swaggerUI.serve, swaggerUI.setup(specs));
 
+// API routes
 app.use("/lessons", lessonsRoutes);
 app.use("/user", userRoutes);
 app.use("/email", emailRoutes);
@@ -46,7 +52,6 @@ app.use("/api", apiRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.resolve(__dirname, "../client/build")));
-
   app.get("*", (req, res) => {
     res.sendFile(path.resolve(__dirname, "../client/build", "index.html"));
   });
@@ -55,11 +60,9 @@ if (process.env.NODE_ENV === "production") {
 const initApplication = async (): Promise<Express> => {
   return new Promise<Express>((resolve, reject) => {
     const db = mongoose.connection;
-
     db.on("error", (error) => {
       console.error("Database connection error:", error);
     });
-
     db.once("open", () => {
       console.log("Connected to database");
     });
@@ -69,9 +72,12 @@ const initApplication = async (): Promise<Express> => {
       reject();
       return;
     } else {
-      mongoose.connect(process.env.DATABASE_URL).then(() => {
-        resolve(app);
-      });
+      mongoose
+        .connect(process.env.DATABASE_URL)
+        .then(() => {
+          resolve(app);
+        })
+        .catch((err) => reject(err));
     }
   });
 };
