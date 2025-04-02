@@ -2,7 +2,6 @@ import userModel from "../modules/userModel";
 import { Request, Response , NextFunction } from "express";
 import bcrypt from 'bcrypt'
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import { r } from "react-router/dist/development/fog-of-war-Ckdfl79L";
 
 const register = async (req: Request, res: Response) => {
 

@@ -1,8 +1,8 @@
 import lessonsModel, { ILesson } from "../modules/lessonsModel";
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import { BaseController } from "./baseController";
 import mongoose from "mongoose";
-import { generateLessonContent } from "../services/openaiService";
+import { generateLessonContent } from "../services/openaiServices";
 
 class LessonsController extends BaseController<ILesson> {
   constructor() {
@@ -11,6 +11,8 @@ class LessonsController extends BaseController<ILesson> {
   async startLesson(req: Request, res: Response): Promise<void> {
     try {
       const { userId, grade, rank, subject } = req.body;
+      console.log("Rank:", rank);
+      console.log("userId", userId);
 
       // Create a prompt tailored to the user's information
       const prompt = `You are an expert math teacher for grade ${grade} students. 
