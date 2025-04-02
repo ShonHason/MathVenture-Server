@@ -1,15 +1,20 @@
 import appInit from "./server";
+import http from "http";
 
-const port = process.env.PORT;
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const port = process.env.PORT || 4000;
 
 appInit
   .initApplication()
   .then((app) => {
-    app.listen(port, () => {
+    const server = http.createServer(app);
+    server.listen(port, () => {
       console.log(`Server is running on port ${port}`);
-      console.log("server is running");
     });
   })
   .catch((err) => {
-    console.log("Error initializing app", err);
+    console.error("Error initializing app", err);
   });
