@@ -8,7 +8,7 @@ dotenv.config();
 if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_API_KEY.trim() !== '') {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   console.log('SendGrid API key is set');
-  console.log('SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY);
+  
 } else {
   throw new Error('SENDGRID_API_KEY is not defined in environment variables');
 }
