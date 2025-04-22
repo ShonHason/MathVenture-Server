@@ -237,11 +237,11 @@ router.delete("/:_id", (req: Request, res: Response) => {
  */
 
 router.get("/users/:userId", (req: Request, res: Response) => {
-  lessonsController.getByUserId(req, res);
+  lessonsController.getLessonsByUserId(req, res);
 });
 
 router.post("/start", (req: Request, res: Response) => {
-  lessonsController.startLesson(req, res);
+  lessonsController.startNewLesson(req, res);
 });
 // router.patch("/:_id/progress", lessonsController.updateProgress);
 
