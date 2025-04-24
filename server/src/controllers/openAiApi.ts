@@ -47,7 +47,8 @@ export async function askQuestion(
     model: "gpt-3.5-turbo",
     messages,
     temperature: 0.7,
-    max_tokens: 150,
+    max_tokens: 350,
+
   });
 
   const answer = response.choices[0].message?.content?.trim() ?? "";
