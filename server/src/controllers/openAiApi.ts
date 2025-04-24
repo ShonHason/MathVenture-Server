@@ -48,6 +48,7 @@ export async function askQuestion(
     messages,
     temperature: 0.7,
     max_tokens: 350,
+
   });
 
   const answer = response.choices[0].message?.content?.trim() ?? "";

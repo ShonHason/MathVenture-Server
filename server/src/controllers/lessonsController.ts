@@ -50,6 +50,7 @@ class LessonsController extends BaseController<ILesson> {
       and the strengths and weaknesses of the student in this lesson, and how many questions he got right and how many he got wrong,
       the summary should be in hebrew, and i want to get it only when you get the massage "end of lesson",`
 .trim();
+
   
 
       const newLesson = await lessonsModel.create({
