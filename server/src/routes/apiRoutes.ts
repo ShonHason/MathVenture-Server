@@ -6,11 +6,12 @@ const router = Router();
 
 router.post('/chat', async (req: Request, res: Response) => {
   try {
-    const { question, context } = req.body;
+    const { question, context , lessonId } = req.body;
     console.log('Received question:', question);
     console.log('Context:', context);
+    console.log('Lesson ID:', lessonId);
 
-    const answer = await askQuestion(question, context);
+    const answer = await askQuestion(question, context, lessonId);
     res.json({ answer });
   } catch (error) {
     console.error('Error processing chat request:', error);
