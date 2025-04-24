@@ -1,137 +1,136 @@
 import { Request, Response } from 'express';
 import sgMail from '@sendgrid/mail';
-import EmailModel from '../modules/emailModel'; // Replace with your actual email model
+import EmailModel from '../modules/emailModel';
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import dotenv from 'dotenv';
-dotenv.config();
 
-if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_API_KEY.trim() !== '') {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-  console.log('SendGrid API key is set');
-  
-} else {
-  throw new Error('SENDGRID_API_KEY is not defined in environment variables');
+// Move SendGrid setup into a function, not at top-level
+function initializeSendGrid() {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  if (!apiKey || apiKey.trim() === "") {
+    throw new Error("SENDGRID_API_KEY is not defined in environment variables");
+  }
+  sgMail.setApiKey(apiKey);
+  console.log("✅ SendGrid API key is set");
 }
 
 const sendEmailAndSaveToDB = async (req: Request, res: Response): Promise<void> => {
-  // Get the token from the Authorization header
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  try {
+    initializeSendGrid(); // Initialize only when needed
 
-  if (!token) {
-    res.status(401).send('Missing token');
-    return;
-  }
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-  // Decode the JWT token
-  const decodedPayload = jwt.decode(token);
-  if (decodedPayload && typeof decodedPayload !== 'string') {
-    const userId = (decodedPayload as JwtPayload)._id;  // Make sure this is a string
+    if (!token) {
+      res.status(401).send('Missing token');
+      return;
+    }
 
-    // Validate request body
+    const decodedPayload = jwt.decode(token);
+    if (!decodedPayload || typeof decodedPayload === 'string') {
+      res.status(401).send('Invalid token');
+      return;
+    }
+
+    const userId = (decodedPayload as JwtPayload)._id;
     const { subject, message, emailAddress } = req.body;
 
     if (!subject || !message || !emailAddress || subject.trim() === '' || message.trim() === '' || emailAddress.trim() === '') {
       res.status(400).send({ error: 'Subject, message, and email address are required' });
-      return;  // Exit early if input is invalid
+      return;
     }
 
-    try {
-      // Step 1: Insert email data into the database with "pending" status
-      const emailData = await EmailModel.create({
-        userID: userId,  // userID is passed as string
-        to: emailAddress,
-        subject: subject,
-        message: message,
-        status: 'pending',
-      });
+    const emailData = await EmailModel.create({
+      userID: userId,
+      to: emailAddress,
+      subject,
+      message,
+      status: 'pending',
+    });
 
-      // Step 2: Send the email using SendGrid
-      const mailOptions = {
-        to: emailAddress,
-        from: 'MathVentureBot@gmail.com', // Use your verified SendGrid sender email
-        subject: subject,
-        text: message,
-      };
+    const mailOptions = {
+      to: emailAddress,
+      from: 'MathVentureBot@gmail.com',
+      subject,
+      text: message,
+    };
 
-      await sgMail.send(mailOptions);
+    await sgMail.send(mailOptions);
 
-      // Step 3: Update the email status to "sent" in the database
-      emailData.status = 'sent';
-      await emailData.save();
+    emailData.status = 'sent';
+    await emailData.save();
 
-      // Step 4: Send a success response
-      res.status(200).send({
-        message: 'Email sent and saved to database successfully!',
-        _id: emailData._id,  // Send the email ID as part of the response
-      });
-      return;  // Exit after successful response
-    } catch (error) {
-      console.error('Error sending email:', error);
+    res.status(200).send({
+      message: 'Email sent and saved to database successfully!',
+      _id: emailData._id,
+    });
+  } catch (error) {
+    console.error('Error sending email:', error);
 
-      // Step 5: Insert email data with "failed" status in case of error
+    // Fallback to saving failed status
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    const decodedPayload = token ? jwt.decode(token) : null;
+    const userId = decodedPayload && typeof decodedPayload !== 'string'
+      ? (decodedPayload as JwtPayload)._id
+      : undefined;
+
+    if (userId) {
       await EmailModel.create({
-        to: emailAddress,
-        userID: userId,  // userID is passed as string
-        subject: subject,
-        message: message,
+        to: req.body?.emailAddress,
+        userID: userId,
+        subject: req.body?.subject,
+        message: req.body?.message,
         status: 'failed',
       });
-
-      // Step 6: Send an error response
-      res.status(500).send({ error: 'Failed to send email. Please try again later.' });
-      return;  // Exit after error response
     }
-  } else {
-    res.status(401).send('Invalid token');
-    return;
+
+    res.status(500).send({ error: 'Failed to send email. Please try again later.' });
   }
 };
 
 const findEmailsByFilter = async (req: Request, res: Response): Promise<void> => {
-  
-  //check i we need many emails or one email
   const emailId = req.params._id;
-  if(!emailId) {
-  //get current user id from the token
+
+  if (!emailId) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    if(!token) { 
-        res.status(401).send('missing token');
-        return;
+
+    if (!token) {
+      res.status(401).send('Missing token');
+      return;
     }
 
     const decodedPayload = jwt.decode(token);
-      if (decodedPayload && typeof decodedPayload !== 'string') {
-        const userId = (decodedPayload as JwtPayload)._id;
-          try {
-            const emails = await EmailModel.find({userID :userId });
-            res.status(200).send(emails);
-          } catch (error) {
-            console.error('Error finding emails:', error);
-            res.status(500).send({ error: 'Failed to find emails.' });
-          }
-      }else{
-        res.status(401).send('invalid token');
-        return;
-      }
-  }else{
-  try {
-    const email = await EmailModel.findOne({ _id: emailId });
-    if (!email||email==null) {
-      res.status(404).send({ error: 'Email not found' });
+    if (!decodedPayload || typeof decodedPayload === 'string') {
+      res.status(401).send('Invalid token');
       return;
     }
-    res.status(200).send(email);
+
+    const userId = (decodedPayload as JwtPayload)._id;
+
+    try {
+      const emails = await EmailModel.find({ userID: userId });
+      res.status(200).send(emails);
+    } catch (error) {
+      console.error('Error finding emails:', error);
+      res.status(500).send({ error: 'Failed to find emails.' });
     }
-    catch (error) {
-    console.error('Error finding email:', error);
-    res.status(500).send({ error: 'Failed to find email.' });
+  } else {
+    try {
+      const email = await EmailModel.findOne({ _id: emailId });
+      if (!email) {
+        res.status(404).send({ error: 'Email not found' });
+        return;
+      }
+      res.status(200).send(email);
+    } catch (error) {
+      console.error('Error finding email:', error);
+      res.status(500).send({ error: 'Failed to find email.' });
     }
   }
-}
+};
 
-
-
-
-export default { sendEmailAndSaveToDB , findEmailsByFilter  };
+export default {
+  sendEmailAndSaveToDB,
+  findEmailsByFilter,
+};
