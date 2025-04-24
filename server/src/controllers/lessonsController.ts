@@ -46,7 +46,11 @@ class LessonsController extends BaseController<ILesson> {
       = שווה
       and last thing i would like you to give me the math question in a separate line, so i could use it in also in other ways.
       please make use in the hebrew language well,
-    `.trim();
+      in the end of the lesson you should give me a summary of the lesson, and what we learned in this lesson,how the student could improve, and what he should do in order to improve,
+      and the strengths and weaknesses of the student in this lesson, and how many questions he got right and how many he got wrong,
+      the summary should be in hebrew, and i want to get it only when you get the massage "end of lesson",`
+.trim();
+
   
 
       const newLesson = await lessonsModel.create({
