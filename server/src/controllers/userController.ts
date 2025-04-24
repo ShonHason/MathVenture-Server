@@ -228,7 +228,7 @@ const getUserProfile = async (req: Request, res: Response) => {
 const endOfRegistration = async (req: Request, res: Response) => {
   // Extract the fields from the request body
   const {
-    userId,        // Mongo _id from registration
+    userId,
     imageUrl,
     grade,
     rank,
@@ -237,8 +237,7 @@ const endOfRegistration = async (req: Request, res: Response) => {
     parent_name,
     parent_phone,
   } = req.body;
-  console.log("endOfRegistration");
-  console.log("Body: " + req.body);
+  
   // Validate that we received a userId
   if (!userId) {
     res.status(400).send("User ID is required");
@@ -247,10 +246,12 @@ const endOfRegistration = async (req: Request, res: Response) => {
 
   try {
     // Find the user by ID and update the additional registration fields
+    // Note: imageUrl is now handled separately by the image upload endpoint
     const updatedUser = await userModel.findByIdAndUpdate(
       userId,
       {
-        imageUrl,
+        // Only set imageUrl if provided in this request
+        ...(imageUrl && { imageUrl }),
         grade,
         rank,
         dateOfBirth,
@@ -265,16 +266,14 @@ const endOfRegistration = async (req: Request, res: Response) => {
       res.status(404).send("User not found");
       return;
     }
-    console.log("Finished Quiz");
-    console.log("User: " + updatedUser);
+    
+    console.log("User registration completed");
     res.status(200).send(updatedUser);
-
   } catch (error) {
     console.error("Error in endOfRegistration:", error);
     res.status(500).send("Server error during endOfRegistration");
   }
 };
-
 
 const deleteUser = async (req: Request, res: Response) => {
   const decodedPayload = jwt.decode(req.body.accessToken);
