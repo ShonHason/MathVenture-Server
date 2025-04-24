@@ -1,44 +1,60 @@
-import mongoose, { Schema, Document, Types } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 import { MathTopics } from "./enum/EducationalTopics";
 import { progressType } from "./enum/progress";
 
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
 
 export interface ILesson extends Document {
   userId: string;
   startTime: Date;
-  endTime: Date;
+  endTime?: Date;
   progress: progressType;
   subject: MathTopics;
+  messages: ChatMessage[];      // <-- array of role/content objects
 }
 
-const lessonsSchema = new Schema<ILesson>(
+const chatMessageSchema = new Schema<ChatMessage>(
   {
-    userId: {
+    role: {
+      type: String,
+      enum: ["system", "user", "assistant"],
+      required: true,
+    },
+    content: {
       type: String,
       required: true,
     },
+  },
+  { _id: false }  // no separate _id for each sub‑document
+);
+
+const lessonsSchema = new Schema<ILesson>(
+  {
+    userId:    { type: String, required: true },
     startTime: { type: Date, required: true },
-    endTime: { type: Date, required: true },
-    progress: {
+    endTime:   { type: Date, required: false },
+    progress:  {
       type: String,
       enum: Object.values(progressType),
       default: progressType.NOT_STARTED,
       required: true,
     },
-    subject: {
-      type: String,
-      enum: Object.values(MathTopics),
-      required: true,
-    },
+    subject:   { type: String /*, enum: Object.values(MathTopics)*/, required: true },
+    messages:  {
+      type: [chatMessageSchema], 
+      default: []
+    }
   },
   {
     toJSON: {
       transform: (doc, ret) => {
-        // Ensure _id appears first in the JSON response
         const { _id, ...rest } = ret;
-        return { _id, ...rest }; // Return _id first followed by the rest of the fields
-      },
-    },
+        return { _id, ...rest };
+      }
+    }
   }
 );
 

@@ -1,6 +1,7 @@
 import OpenAI from "openai";
+import lessonsModel from "../modules/lessonsModel";
+import { progressType } from "../modules/enum/progress";
 
-// Create your own message type (we only need system and user for now)
 type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -17,33 +18,42 @@ const openai = new OpenAI({
  * @param context - Optional context object.
  * @returns A Promise resolving to the answer as a string.
  */
-export async function askQuestion(question: string, context?: string): Promise<string> {
-  try {
-    // Build the messages array. If you have context, include it as a system message.
-    const messages: ChatMessage[] = [];
-    if (context) {
-      messages.push({
-        role: "system",
-        content: JSON.stringify(context),
-      });
+// openAiApi.ts
+export async function askQuestion(
+  question: string,
+  _unusedContext: string,
+  lessonId?: string
+): Promise<string> {
+  // 1. fetch the lesson from DB
+  const lesson = await lessonsModel.findById(lessonId);
+  if (!lesson) throw new Error("Lesson not found");
+
+    if (lesson.progress === "NOT_STARTED" || lesson.progress === "PAUSED") {
+    lesson.progress = progressType.IN_PROGRESS ;
     }
-    messages.push({
-      role: "user",
-      content: question,
-    });
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages,
-      temperature: 0.7,
-      max_tokens: 150,
-    });
+    // 2. rehydrate your conversation history
+  const messages: ChatMessage[] = lesson.messages.map((m: ChatMessage) => ({
+    role: m.role,
+    content: m.content,
+  }));
 
-    // Ensure the response contains choices and a valid message
-    const answer = response.choices?.[0]?.message?.content?.trim();
-    return answer || "";
-  } catch (error) {
-    console.error("Error asking question:", error);
-    throw error;
-  }
+  // 3. push the new user question
+  messages.push({ role: "user", content: question });
+  lesson.messages.push({ role: "user", content: question });
+
+  // 4. call OpenAI
+  const response = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo",
+    messages,
+    temperature: 0.7,
+    max_tokens: 350,
+  });
+
+  const answer = response.choices[0].message?.content?.trim() ?? "";
+  // 5. save the assistant’s reply
+  lesson.messages.push({ role: "assistant", content: answer });
+  await lesson.save();
+
+  return answer;
 }
