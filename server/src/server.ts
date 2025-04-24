@@ -10,6 +10,9 @@ import lessonsRoutes from "./routes/lessonsRoutes";
 import apiRoutes from "./routes/apiRoutes";
 import swaggerUI from "swagger-ui-express";
 import swaggerJsDoc from "swagger-jsdoc";
+import multer from "multer";
+import fs from "fs-extra";
+import sharp from "sharp";
 
 dotenv.config();
 
@@ -24,11 +27,20 @@ app.use(
   })
 );
 
-// Body Parser
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Configure body parser with increased limits for image uploads
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
-// הגדרת Swagger לדוקומנטציה (לפי הצורך)
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads/profile-images');
+fs.ensureDirSync(uploadDir);
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Swagger documentation setup (as needed)
 const options = {
   definition: {
     openapi: "3.0.0",
@@ -50,6 +62,7 @@ app.use("/user", userRoutes);
 app.use("/email", emailRoutes);
 app.use("/api", apiRoutes);
 
+// Production settings
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.resolve(__dirname, "../client/build")));
   app.get("*", (req, res) => {
@@ -58,7 +71,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const initApplication = async (): Promise<Express> => {
-  return new Promise<Express>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const db = mongoose.connection;
     db.on("error", (error) => {
       console.error("Database connection error:", error);
