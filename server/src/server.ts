@@ -1,5 +1,4 @@
 import express, { Express } from "express";
-import dotenv from "dotenv";
 import mongoose from "mongoose";
 import bodyParser from "body-parser";
 import path from "path";
@@ -14,15 +13,13 @@ import multer from "multer";
 import fs from "fs-extra";
 import sharp from "sharp";
 
-dotenv.config();
-
 const app: Express = express();
 
 // הגדרות CORS – חשוב להגדיר לפני שאר ה-middlewares
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );

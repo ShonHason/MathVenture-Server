@@ -1,5 +1,6 @@
 import lessonsController from "../controllers/lessonsController";
 import express, { Request, Response } from "express";
+
 /**
  * @swagger
  * components:
@@ -244,5 +245,10 @@ router.post("/start", (req: Request, res: Response) => {
   lessonsController.startNewLesson(req, res);
 });
 // router.patch("/:_id/progress", lessonsController.updateProgress);
-
+router.post("/:lessonId/chat", lessonsController.chat.bind(lessonsController));
+router.post("/:lessonId/tts", lessonsController.tts.bind(lessonsController));
+router.get(
+  "/:lessonId/session",
+  lessonsController.getSession.bind(lessonsController)
+);
 export default router;
