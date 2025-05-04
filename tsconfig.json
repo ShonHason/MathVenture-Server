@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+
     "module": "commonjs", // CommonJS module system
     "esModuleInterop": true, // Enable interop between CommonJS and ES modules
     "target": "es6", // Transpile to ES6 syntax
