@@ -326,4 +326,73 @@ router.delete("/deleteUser", userTokensMiddleware, userController.deleteUser);
 router.put("/endOfRegistration", userController.endOfRegistration);
   
 router.post("/refresh", userController.refresh);
+
+router.put(
+  "/updateProfile",
+  userTokensMiddleware,
+  userController.updateProfile
+);
+/**
+ * @swagger
+ * /user/updateProfile:
+ *   put:
+ *     summary: Update user profile
+ *     tags: [User]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: The ID of the user
+ *               username:
+ *                 type: string
+ *                 description: Updated username
+ *               email:
+ *                 type: string
+ *                 description: Updated email
+ *               parent_phone:
+ *                 type: string
+ *                 description: Updated parent's phone number
+ *               grade:
+ *                 type: string
+ *                 description: Updated grade
+ *                 enum:
+ *                   - א
+ *                   - ב
+ *                   - ג
+ *                   - ד
+ *                   - ה
+ *                   - ו
+ *                   - ז
+ *                   - ח
+ *                   - ט
+ *               imageUrl:
+ *                 type: string
+ *                 description: Updated profile image URL (Base64 or URL)
+ *             required:
+ *               - userId
+ *             example:
+ *               userId: "660af8373b7e2c72a5f8c13f"
+ *               username: "New Username"
+ *               email: "newemail@example.com"
+ *               parent_phone: "0501234567"
+ *               grade: "ו"
+ *               imageUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *       400:
+ *         description: Missing or invalid data
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error during profile update
+ */
+
 export default router;
