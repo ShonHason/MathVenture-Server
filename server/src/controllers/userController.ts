@@ -3,6 +3,7 @@ import { Request, Response , NextFunction } from "express";
 import bcrypt from 'bcrypt'
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
+
 const updateProfile = async (req: Request, res: Response) => {
   try {
     const { userId, username, email, parent_phone, grade, imageUrl } = req.body;
@@ -420,7 +421,10 @@ const refresh = async (req: Request, res: Response) => {
   );
 };
 
+
 export default {updateProfile,register , login, logout ,endOfRegistration, updatePassword , updateParentsMail, getUserProfile , deleteUser , refresh};  
+
+
 
 
 // updateEndOfQuiz ( kidEmail:email  username:username imageUrl, grade,rank,parent_phone)
