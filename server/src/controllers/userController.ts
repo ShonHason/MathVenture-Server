@@ -3,37 +3,52 @@ import { Request, Response , NextFunction } from "express";
 import bcrypt from 'bcrypt'
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
-
-const updateProfile = async (req: Request, res: Response) => {
+const updateProfile = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const { userId, username, email, parent_phone, grade, imageUrl } = req.body;
 
     if (!userId) {
-      return res.status(400).send("User ID is required");
+      res.status(400).send("User ID is required");
+      return;
     }
 
-    const updateFields: any = {};
-    if (username !== undefined) updateFields.username = username;
-    if (email !== undefined) updateFields.email = email;
-    if (parent_phone !== undefined) updateFields.parent_phone = parent_phone;
-    if (grade !== undefined) updateFields.grade = grade;
-    if (imageUrl !== undefined) updateFields.imageUrl = imageUrl;
+    const updateFields: Partial<{
+      username: string;
+      email: string;
+      parent_phone: string;
+      grade: string;
+      imageUrl: string;
+    }> = {};
 
-    const updatedUser = await userModel.findByIdAndUpdate(userId, updateFields, {
-      new: true,
-      runValidators: true,
-    });
+    if (username !== undefined)   updateFields.username     = username;
+    if (email !== undefined)      updateFields.email        = email;
+    if (parent_phone !== undefined) updateFields.parent_phone = parent_phone;
+    if (grade !== undefined)      updateFields.grade        = grade;
+    if (imageUrl !== undefined)   updateFields.imageUrl     = imageUrl;
+
+    const updatedUser = await userModel.findByIdAndUpdate(
+      userId,
+      updateFields,
+      { new: true, runValidators: true }
+    );
 
     if (!updatedUser) {
-      return res.status(404).send("User not found");
+      res.status(404).send("User not found");
+      return;
     }
 
     res.status(200).send(updatedUser);
+    return;
   } catch (error) {
     console.error("Error updating user profile:", error);
     res.status(500).send("Server error during profile update");
+    return;
   }
 };
+
 
 
 const register = async (req: Request, res: Response) => {

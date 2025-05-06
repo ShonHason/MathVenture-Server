@@ -9,9 +9,9 @@ import lessonsRoutes from "./routes/lessonsRoutes";
 import apiRoutes from "./routes/apiRoutes";
 import swaggerUI from "swagger-ui-express";
 import swaggerJsDoc from "swagger-jsdoc";
-import multer from "multer";
+//import multer from "multer";
 import fs from "fs-extra";
-import sharp from "sharp";
+//import sharp from "sharp";
 
 const app: Express = express();
 
