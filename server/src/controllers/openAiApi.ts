@@ -1,9 +1,11 @@
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
-
+import OpenAI from "openai";
+import lessonsModel from "../modules/lessonsModel";
+import { progressType } from "../modules/enum/progress";
 // 1) Load & override the root .env
-const envPath = path.resolve(__dirname, "../../../.env");
+const envPath = path.resolve(__dirname, "../../.env");
 console.log("📦 [openAiApi] Loading .env from:", envPath);
 
 if (!fs.existsSync(envPath)) {
@@ -20,13 +22,11 @@ console.log(
 );
 
 // 3) Now require the OpenAI SDK (non-hoisted)
-const OpenAI = require("openai").default;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
 
 
 // 4) Your imports/models come next
-import lessonsModel from "../modules/lessonsModel";
-import { progressType } from "../modules/enum/progress";
+
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
