@@ -237,13 +237,12 @@ router.delete("/:_id", (req: Request, res: Response) => {
  *         description: No data found
  */
 
-router.get("/users/:userId", (req: Request, res: Response) => {
+router.get("/getLessons/:userId", (req: Request, res: Response) => {
   lessonsController.getLessonsByUserId(req, res);
 });
+router.post("/start/:lessonId?", lessonsController.startLesson);
 
-router.post("/start", (req: Request, res: Response) => {
-  lessonsController.startNewLesson(req, res);
-});
+
 // router.patch("/:_id/progress", lessonsController.updateProgress);
 router.post("/:lessonId/chat", lessonsController.chat.bind(lessonsController));
 router.post("/:lessonId/tts", lessonsController.tts.bind(lessonsController));

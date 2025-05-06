@@ -5,11 +5,13 @@ import dotenv from "dotenv";
 import fs from "fs";
 
 // ✅ FORCE dotenv to load the correct file from the project root
-const envPath = path.resolve(__dirname, "../../.env");
+const envPath = path.resolve(__dirname, "../.env");
 console.log("📦 Loading .env from:", envPath);
 
+
 if (fs.existsSync(envPath)) {
-  console.log("📄 .env content:\n" + fs.readFileSync(envPath, "utf-8"));
+  //console.log("📄 .env content:\n" + fs.readFileSync(envPath, "utf-8"));
+  console.log("✅ .env file FOUND at:", envPath);
 } else {
   console.error("❌ .env file NOT FOUND at:", envPath);
 }
