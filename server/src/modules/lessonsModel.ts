@@ -11,6 +11,7 @@ export interface ILesson extends Document {
   userId: string;
   startTime: Date;
   endTime?: Date;
+  mathQuestionsCount: number;
   progress: progressType;
   subject: MathTopics;
   messages: ChatMessage[];      // <-- array of role/content objects
@@ -42,6 +43,7 @@ const lessonsSchema = new Schema<ILesson>(
       default: progressType.NOT_STARTED,
       required: true,
     },
+    mathQuestionsCount:{type: Number, default: 0},
     subject:   { type: String /*, enum: Object.values(MathTopics)*/, required: true },
     messages:  {
       type: [chatMessageSchema], 
