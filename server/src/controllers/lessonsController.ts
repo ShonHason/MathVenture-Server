@@ -21,38 +21,48 @@ class LessonsController extends BaseController<ILesson> {
   /**
    * בונה את ה-system prompt על פי הפרמטרים
    */
-  private buildSystemPrompt(username: string, grade: string, rank: string, subject: string): string {
-      return `
-        You are a caring math tutor for young Hebrew-speaking children.
-
-        ***Under no circumstances reveal the correct numeric answer unless the student explicitly asks “מה התשובה?”***  
-        If you ever accidentally state the answer before being asked, immediately apologize (“מצטער, לא התכוונתי לחשוף את התשובה”) and prompt the student to ask “מה התשובה?” before you give it.
-
-        1. One question at a time.
-
-        2. When the student answers:
-          - Compute the correct result internally, but do NOT say it aloud.
-          - **1st wrong try:** reply in Hebrew “לא נכון, נסה לחשב שוב.” then repeat the same question.
-          - **2nd wrong try:** give a simple, child-friendly hint, then repeat the question. Do NOT give the number.
-          - **3rd wrong try:** walk through the calculation step-by-step, but do NOT state the answer.
-          - **Only if** the student then asks “מה התשובה?” may you say the numeric result.
-
-        3. If the student answers correctly at any point, reply: “נכון! התשובה שלך נכונה.” and move on.
-
-        4. Always use simple words, analogies or little stories suitable for a child.
-
-        5. The lesson has 15 questions in ascending difficulty.
-
-        6. Use Hebrew throughout.
-
-        7. When the student types “end of lesson,” give a Hebrew summary of what was covered, their strengths & weaknesses, and how to improve—still in child-friendly language.
-
-        Now begin:
-        – Student: ${username}  
-        – Grade: ${grade}, Rank: ${rank}  
-        – Subject: ${subject}
-            `.trim();
+  private buildSystemPrompt(
+    username: string,
+    grade: string,
+    rank: string,
+    subject: string
+  ): string {
+    return `
+  You are a caring, patient math tutor for young Hebrew-speaking children. Use simple words, gentle encouragement, and a warm tone with emojis when appropriate.
+  
+  👋 **Greeting**  
+  As soon as the lesson begins, say:  
+  "שלום ${username}!
+   נעים מאוד לראות אותך היום אלוף
+    בוא נתחיל בשיעור במתמטיקה בנושא ${subject}."
+  
+  📚 **Lesson structure**  
+  - The lesson has 15 questions in ascending difficulty.  
+  - Each new question must have a **different numeric answer** than any previous question this session.  
+  - Always ask in the format: “כמה זה <expression>?”.
+  
+  🔢 **Exact numeric evaluation**  
+  - When the student replies with a number (e.g. “30” or “שלושים”), parse it exactly and compare it to the correct result of **that question**.  
+    - If correct, respond **only**: “תמשיך ככה,נכון! התשובה שלך נכונה ”  
+    - Never say “לא נכון” for a numerically correct answer.
+  
+  📝 **Handling wrong attempts**  
+  - **1st wrong try:** “לא נכון, נסה לחשב שוב.” then repeat **exactly** the same “כמה זה <expression>?”.  
+  - **2nd wrong try:** give a simple hint (“זכור לחבר 3 + 2 קודם”). Then repeat “כמה זה <expression>?”.  
+  - **3rd wrong try:** walk through the steps (“נחבר 3 ל־2…”) but don’t state the answer. Then repeat “כמה זה <expression>?”.  
+  - Only if the student asks “מה התשובה?” may you finally say the numeric result.
+  
+  🔔 **Moving on**  
+  - After a correct answer, give cheerful feedback (“יופי! עכשיו לשאלה הבאה”) and immediately ask the next “כמה זה <new expression>?”.
+  
+  🚩 **End of lesson**  
+  If the student types “end of lesson,” give a child-friendly Hebrew summary of what was covered, their strengths & weaknesses, and tips for improvement.
+  
+  Use Hebrew throughout, and keep everything playful and encouraging.  
+    `.trim();
   }
+  
+  
 
   /**
    * POST /lessons/startNew
@@ -73,7 +83,11 @@ class LessonsController extends BaseController<ILesson> {
           res.status(404).send("Lesson not found");
           return;
         }
-        res.status(200).json(existing);
+        res.status(200).json({
+          _id: existing._id,
+          mathQuestionsCount: existing.mathQuestionsCount,
+          
+        });
         return;
       }
 
@@ -106,7 +120,10 @@ class LessonsController extends BaseController<ILesson> {
         messages: [{ role: "system", content: systemPrompt }],
       });
 
-      res.status(201).json(newLesson);
+      res.status(201).json({
+        _id: newLesson._id,
+        mathQuestionsCount: newLesson.mathQuestionsCount,
+      });
     } catch (err) {
       console.error("Error in startLesson:", err);
       res.status(500).send("Internal Server Error");
@@ -193,23 +210,51 @@ async getSession(
   /**
    * Chat endpoint: send question to OpenAI and return answer
    */
-  async chat(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { lessonId } = req.params;
-      const { question } = req.body;
-      if (!question || typeof question !== "string") {
-        res.status(400).json({ error: 'Missing "question"' });
-        return;
-      }
-      console.log("➡️ /lessons/:lessonId/chat", { lessonId, question });
-      const answer = await askQuestion(question, "", lessonId);
-      console.log("⬅️ answer:", answer.slice(0, 50));
-      res.json({ answer });
-    } catch (err) {
-      console.error("❌ /lessons/:lessonId/chat error:", err);
-      next(err);
+ // inside LessonsController
+ // src/controllers/lessonsController.ts
+async chat(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { lessonId } = req.params;
+    const { question } = req.body;
+    if (!question || typeof question !== "string") {
+       res.status(400).json({ error: 'Missing "question"' });
+       return
     }
+
+    // 1) Ask the AI (might return a JSON-string for the done:true case)
+    const raw = await askQuestion(question, "", lessonId);
+
+    // 2) If it's the "done" payload, return it immediately
+    if (raw.trim().startsWith("{")) {
+      try {
+        const donePayload = JSON.parse(raw);
+        if (donePayload.done) {
+           res.json(donePayload);
+           return
+        }
+      } catch {
+        // not a done‐payload, fall through
+      }
+    }
+
+    // 3) Normal answer
+    const answer = raw;
+
+    // 4) Look up the updated counter
+    const lesson = await lessonsModel.findById(lessonId);
+    const mathQuestionsCount = lesson?.mathQuestionsCount ?? 0;
+
+    // 5) Send both the answer text and the fresh count
+    res.json({ answer, mathQuestionsCount });
+  } catch (err) {
+    console.error("❌ /lessons/:lessonId/chat error:", err);
+    next(err);
   }
+}
+
+
+
+  
 
   /**
    * TTS endpoint: convert text to speech and stream MP3
