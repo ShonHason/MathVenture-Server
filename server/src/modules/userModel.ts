@@ -1,6 +1,22 @@
 import mongoose from "mongoose";
 
-const userSchema = new mongoose.Schema(
+export interface IUser extends Document {
+  username:      string;
+  email:         string;
+  gender:        "female" | "male";
+  password:      string;
+  refreshTokens: string[];
+  parent_email?: string;
+  parent_name?:  string;
+  parent_phone?: string;
+  grade?:        string;
+  rank?:         string;
+  dateOfBirth?:  Date;
+  imageUrl?:     string;
+}
+
+
+const userSchema = new mongoose.Schema<IUser>(
   {
     username: {
       type: String,
@@ -11,6 +27,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+    },
+    gender: {
+      type: String,
+      required: true,
+      enum: ["female","male"],
+      default: "male",
     },
     password: {
       type: String,
