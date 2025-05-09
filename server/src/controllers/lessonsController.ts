@@ -4,6 +4,12 @@ import { BaseController } from "./baseController";
 import mongoose from "mongoose";
 import { askQuestion } from "./openAiApi";
 import { textToSpeechConvert } from "./APIController/ttsController";
+import sgMail from "@sendgrid/mail";
+import UserModel from "../modules/userModel";
+import { progressType } from "../modules/enum/progress";
+
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
 
 class LessonsController extends BaseController<ILesson> {
   constructor() {
@@ -62,7 +68,45 @@ class LessonsController extends BaseController<ILesson> {
     `.trim();
   }
   
-  
+  public reportLesson = async (req: Request, res: Response): Promise<void> => {
+    const { lessonId } = req.params 
+    try{
+      if(!mongoose.Types.ObjectId.isValid(lessonId)){
+        res.status(400).send("Invalid lessonId");
+        return;
+      }
+      const lesson = await lessonsModel.findById(lessonId);
+      if(!lesson){
+        res.status(404).send("Lesson not found");
+        return;
+      }
+      const user = await UserModel.findById(lesson.userId).lean();
+      if(!user){
+        res.status(404).send("User not found");
+        return;
+      }
+      const toEmail = user.parent_email;
+      if(!toEmail){
+        res.status(404).send("User has no parent email");
+        return;
+      }
+      const msg = {
+        to: toEmail,
+        from: "mathventurebot@gmail.com",
+        subject: `MathVenture - Lesson Report for ${lesson.subject}`,
+        text: `Hello ${user.parent_name},\n\nHere is the report for your child's lesson on ${lesson.subject}.\n\nLesson ID: ${lesson._id}\nStart Time: ${lesson.startTime}\nEnd Time: ${lesson.endTime}\nProgress: ${lesson.progress}\n\nBest regards,\nMathVenture Team`,
+        html: `<p>Hello ${user.parent_name},</p><p>Here is the report for your child's lesson on ${lesson.subject}.</p><p>Lesson ID: ${lesson._id}</p><p>Start Time: ${lesson.startTime}</p><p>End Time: ${lesson.endTime}</p><p>Progress: ${lesson.progress}</p><br><p>Best regards,</p><p>MathVenture Team</p>`  
+      };
+      await sgMail.send(msg);
+      res.status(200).send("Email sent successfully");
+        
+      }
+
+    catch(err){
+      console.error("Error in reportLesson:", err);
+      res.status(500).send("Internal Server Error");
+    }
+  }
 
   /**
    * POST /lessons/startNew
@@ -212,46 +256,80 @@ async getSession(
    */
  // inside LessonsController
  // src/controllers/lessonsController.ts
-async chat(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { lessonId } = req.params;
-    const { question } = req.body;
-    if (!question || typeof question !== "string") {
-       res.status(400).json({ error: 'Missing "question"' });
-       return
-    }
+ async chat(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const { lessonId } = req.params;
+  const { question } = req.body;
 
-    // 1) Ask the AI (might return a JSON-string for the done:true case)
+  try {
+    // 1) Ask the AI
     const raw = await askQuestion(question, "", lessonId);
 
-    // 2) If it's the "done" payload, return it immediately
+    // 2) Handle done‐payload
     if (raw.trim().startsWith("{")) {
       try {
         const donePayload = JSON.parse(raw);
         if (donePayload.done) {
-           res.json(donePayload);
-           return
+          // — a) Mark lesson DONE & set endTime
+          const lesson = await lessonsModel.findByIdAndUpdate(
+            lessonId,
+            {
+              progress: progressType.DONE,
+              endTime: new Date(),
+            },
+            { new: true }
+          );
+          if (!lesson) {
+            res.status(404).json({ error: "השיעור לא נמצא" });
+            return;
+          }
+
+          // — b) Lookup user & pick parent_email
+          const user = await UserModel.findById(lesson.userId).lean();
+          const toEmail = user?.parent_email || user?.email;
+          if (toEmail) {
+            // — c) Send summary email
+            await sgMail.send({
+              to: toEmail,
+              from: "mathventurebot@gmail.com",
+              subject: `סיכום שיעור: ${lesson.subject}`,
+              text: `שלום,
+
+השיעור בנושא "${lesson.subject}" הושלם בהצלחה!
+חוזקות: ${donePayload.strengths || "–"}
+נקודות לשיפור: ${donePayload.weaknesses || "–"}
+טיפים: ${donePayload.tips || "–"}
+
+בהצלחה בשיעורים הבאים!`,
+              html: `<p>שלום,</p>
+                     <p>השיעור בנושא "<strong>${lesson.subject}</strong>" הושלם בהצלחה!</p>
+                     <ul>
+                       <li><strong>חוזקות:</strong> ${donePayload.strengths || "–"}</li>
+                       <li><strong>נקודות לשיפור:</strong> ${donePayload.weaknesses || "–"}</li>
+                       <li><strong>טיפים:</strong> ${donePayload.tips || "–"}</li>
+                     </ul>
+                     <p>בהצלחה בשיעורים הבאים!</p>`,
+            });
+          }
+
+          // — d) Return the payload so the frontend sees { done: true, … }
+          res.json(donePayload);
+          return;
         }
       } catch {
-        // not a done‐payload, fall through
+        // not valid JSON, fall through to normal answer
       }
     }
 
-    // 3) Normal answer
+    // 3) Normal Q&A flow
     const answer = raw;
-
-    // 4) Look up the updated counter
     const lesson = await lessonsModel.findById(lessonId);
     const mathQuestionsCount = lesson?.mathQuestionsCount ?? 0;
-
-    // 5) Send both the answer text and the fresh count
     res.json({ answer, mathQuestionsCount });
   } catch (err) {
     console.error("❌ /lessons/:lessonId/chat error:", err);
     next(err);
   }
 }
-
 
 
   
