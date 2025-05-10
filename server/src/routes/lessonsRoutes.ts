@@ -241,6 +241,7 @@ router.get("/getLessons/:userId", (req: Request, res: Response) => {
   lessonsController.getLessonsByUserId(req, res);
 });
 router.post("/start/:lessonId?", lessonsController.startLesson);
+router.post("/report/:lessonId", lessonsController.reportLesson.bind(lessonsController));
 
 
 // router.patch("/:_id/progress", lessonsController.updateProgress);
