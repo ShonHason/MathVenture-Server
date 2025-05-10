@@ -56,6 +56,7 @@ const register = async (req: Request, res: Response) => {
   const email  = req.body.email;
   const password  = req.body.password;
   const username = req.body.username;
+  const gender = req.body.gender;
 
     if (!email || !password || email.trim().length == 0 || password.trim().length == 0) {
     res.status(400).send('Email and password are required');
@@ -66,6 +67,10 @@ const register = async (req: Request, res: Response) => {
     res.status(400).send('Please fill all the fields');
     return;
 
+  }
+  if (!gender || !["female","male"].includes(gender)) {
+  res.status(400).send("You must specify gender as “female” or “male”");
+  return;
   }
   const user = await userModel.findOne({email : email});
   if (user) {
@@ -85,6 +90,7 @@ const register = async (req: Request, res: Response) => {
       email: email,
       password: hashedPassword ,
       username: username,
+      gender:gender,
       refreshTokens: [],
      
       });
@@ -139,6 +145,7 @@ const generateTokens = (_id : string) : { accessToken : string , refreshToken : 
 const login = async (req: Request, res: Response) => {
   const email = req.body.email;
   const password = req.body.password;
+  const gender = req.body.gender;
   if (!email || !password || email.trim().length === 0 || password.trim().length === 0) {
     res.status(400).send('Email and password are required');
     return;
@@ -163,6 +170,7 @@ const login = async (req: Request, res: Response) => {
   res.status(200).send({
     email: user.email,
     _id: user._id,
+    gender: user.gender, // Return
     username: user.username,   // Return username if needed
     imageUrl: user.imageUrl,   // Return imageUrl if needed
     grade: user.grade,         // Return grade if needed
@@ -280,6 +288,7 @@ const endOfRegistration = async (req: Request, res: Response) => {
     imageUrl,
     grade,
     rank,
+    gender,
     dateOfBirth,
     parent_email,
     parent_name,
@@ -303,6 +312,7 @@ const endOfRegistration = async (req: Request, res: Response) => {
         grade,
         rank,
         dateOfBirth,
+        gender,
         parent_email,
         parent_name,
         parent_phone,
