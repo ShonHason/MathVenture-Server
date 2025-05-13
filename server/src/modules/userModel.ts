@@ -13,6 +13,7 @@ export interface IUser extends Document {
   rank?:         string;
   dateOfBirth?:  Date;
   imageUrl?:     string;
+  subjectsList?:    string[];  
 }
 
 
@@ -73,6 +74,10 @@ const userSchema = new mongoose.Schema<IUser>(
       type: String,
       default: '',
       required: false,
+    },
+    subjectsList: {
+      type: [String],
+      default: [],
     },
   },
   {
