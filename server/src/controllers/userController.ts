@@ -507,6 +507,3 @@ const removeSubject = async (req: Request, res: Response) => {
 export default {removeSubject,addSubject,updateProfile,register , login, logout ,endOfRegistration, updatePassword , updateParentsMail, getUserProfile , deleteUser , refresh};  
 
 
-
-
-// updateEndOfQuiz ( kidEmail:email  username:username imageUrl, grade,rank,parent_phone)

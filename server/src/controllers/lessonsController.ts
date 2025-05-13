@@ -114,6 +114,7 @@ Use Hebrew throughout, and keep everything playful and encouraging.
         
       }
 
+
     catch(err){
       console.error("Error in reportLesson:", err);
       res.status(500).send("Internal Server Error");
@@ -175,6 +176,7 @@ Use Hebrew throughout, and keep everything playful and encouraging.
 
       // בנה את ה־system prompt בהתבסס על המשתמש המעודכן
       const gender = updatedUser.gender || "male";
+
       const systemPrompt = this.buildSystemPrompt(
         username,
         grade,
@@ -193,7 +195,6 @@ Use Hebrew throughout, and keep everything playful and encouraging.
         messages: [{ role: "system", content: systemPrompt }],
       });
 
-      // החזר ללקוח את המזהה ומספר שאלות המתמטיקה
       res.status(201).json({
         _id: newLesson._id,
         mathQuestionsCount: newLesson.mathQuestionsCount,
