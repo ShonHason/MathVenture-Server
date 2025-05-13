@@ -114,6 +114,7 @@ Use Hebrew throughout, and keep everything playful and encouraging.
         
       }
 
+
     catch(err){
       console.error("Error in reportLesson:", err);
       res.status(500).send("Internal Server Error");
@@ -125,10 +126,10 @@ Use Hebrew throughout, and keep everything playful and encouraging.
    */
   public startLesson = async (req: Request, res: Response): Promise<void> => {
     try {
+      // אם lessonId ב־params – המשך שיעור קיים
       const { lessonId } = req.params as { lessonId?: string };
       const { userId, subject: rawSubject, username, grade, rank } = req.body;
 
-      // המשך שיעור קיים
       if (lessonId) {
         if (!mongoose.Types.ObjectId.isValid(lessonId)) {
           res.status(400).send("Invalid lessonId");
@@ -142,12 +143,13 @@ Use Hebrew throughout, and keep everything playful and encouraging.
         res.status(200).json({
           _id: existing._id,
           mathQuestionsCount: existing.mathQuestionsCount,
-          
         });
         return;
       }
 
-      // יצירת שיעור חדש
+      // --- יצירת שיעור חדש ---
+
+      // ולידציה בסיסית
       if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
         res.status(400).send("Invalid or missing userId");
         return;
@@ -156,15 +158,25 @@ Use Hebrew throughout, and keep everything playful and encouraging.
         res.status(400).send("Missing or invalid subject");
         return;
       }
-       const user = await UserModel.findById(userId).lean();
-    if (!user) {
-      res.status(404).send("User not found");
-      return;
-    }
-    const gender = user.gender || "male";
-      // ניקוי ה־subject
+
+      // נקה את הנושא
       const subject = this.sanitizeSubject(rawSubject);
-      // בונה system prompt
+
+      // בצע עדכון משתמש אחד: הסר את ה־subject מהרשימה, ואחזר את המסמך המעודכן כ־plain object
+      const updatedUser = await UserModel.findOneAndUpdate(
+        { _id: userId },
+        { $pull: { subjectsList: subject } },
+        { new: true, lean: true }
+      );
+
+      if (!updatedUser) {
+        res.status(404).send("User not found");
+        return;
+      }
+
+      // בנה את ה־system prompt בהתבסס על המשתמש המעודכן
+      const gender = updatedUser.gender || "male";
+
       const systemPrompt = this.buildSystemPrompt(
         username,
         grade,
@@ -173,6 +185,7 @@ Use Hebrew throughout, and keep everything playful and encouraging.
         gender
       );
 
+      // צור את השיעור החדש
       const newLesson = await lessonsModel.create({
         userId,
         startTime: new Date(),

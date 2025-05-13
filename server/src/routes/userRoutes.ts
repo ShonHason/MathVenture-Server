@@ -210,7 +210,7 @@ router.post("/login", userController.login);
  */
 router.post("/logout", userTokensMiddleware, userController.logout);
 
-router.post(
+router.get(
   "/getUserProfile",
   userTokensMiddleware,
   userController.getUserProfile
@@ -395,4 +395,6 @@ router.put(
  *         description: Server error during profile update
  */
 
+router.put("/addSubject",userTokensMiddleware,userController.addSubject);
+router.put("/removeSubject",userTokensMiddleware,userController.removeSubject);
 export default router;
