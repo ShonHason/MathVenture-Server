@@ -109,6 +109,7 @@ const register = async (req: Request, res: Response) => {
       _id : newUser._id,
       refreshToken : tokens.refreshToken,
       accessToken : tokens.accessToken,
+      subjectsList : [],
     });
     return;
   } catch (error) {
@@ -175,8 +176,12 @@ const login = async (req: Request, res: Response) => {
     imageUrl: user.imageUrl,   // Return imageUrl if needed
     grade: user.grade,         // Return grade if needed
     rank: user.rank,           // Return rank if needed
+    parent_email: user.parent_email, // Return parent_email if needed
+    parent_name: user.parent_name,   // Return parent_name if needed
+    parent_phone: user.parent_phone, // Return parent_phone if needed
     refreshToken: tokens.refreshToken,
     accessToken: tokens.accessToken,
+    subjectsList: user.subjectsList, // Return subjectsList if needed
   });
   return;
 }
@@ -268,12 +273,13 @@ const getUserProfile = async (req: Request, res: Response) => {
   const decodedPayload = jwt.decode(req.body.accessToken);
   if (decodedPayload && typeof decodedPayload !== 'string') {
   const userId = (decodedPayload as JwtPayload)._id;
-  const user = await userModel.findOne({_id : userId});
+  const user = await userModel.findById(userId);
     if (!user) {
       res.status(400).send('Couldnt find user');
       return;
     }
     res.status(200).send(user);
+    console.log("user:" ,user);
     return;
   } else {  
     res.status(400).send('Invalid Token');
@@ -446,8 +452,59 @@ const refresh = async (req: Request, res: Response) => {
   );
 };
 
+const addSubject = async (req: Request, res: Response) => {
+  const { userId, subject } = req.body;
+  if (!userId) {
+    res.status(400).send("User ID is required");
+    return;
+  }
+  try {
+    const updatedUser = await userModel.findById(userId);
+    if (!updatedUser) {
+      res.status(404).send("User not found");
+      return;
+    }
+    if (updatedUser.subjectsList?.includes(subject)) {
+      res.status(400).send("Subject already exists");
+      return;
+    }
+    updatedUser.subjectsList = updatedUser.subjectsList || [];
+    updatedUser.subjectsList.push(subject);
 
-export default {updateProfile,register , login, logout ,endOfRegistration, updatePassword , updateParentsMail, getUserProfile , deleteUser , refresh};  
+    await updatedUser.save();
+    res.status(200).send(updatedUser);
+  } catch (error) {
+    console.error("Error adding subject:", error);
+    res.status(500).send("Server error during adding subject");
+  }
+}
+const removeSubject = async (req: Request, res: Response) => {
+  const { userId, subject } = req.body;
+  if (!userId) {
+    res.status(400).send("User ID is required");
+    return;
+  }
+  try {
+    const updatedUser = await userModel.findById(userId);
+    if (!updatedUser) {
+      res.status(404).send("User not found");
+      return;
+    }
+    if (!updatedUser.subjectsList?.includes(subject)) {
+      res.status(400).send("Subject does not exist");
+      return;
+    }
+    updatedUser.subjectsList = updatedUser.subjectsList.filter(
+      (sub: string) => sub !== subject
+    );
+    await updatedUser.save();
+    res.status(200).send(updatedUser);
+  } catch (error) {
+    console.error("Error removing subject:", error);
+    res.status(500).send("Server error during removing subject");
+  }
+}
+export default {removeSubject,addSubject,updateProfile,register , login, logout ,endOfRegistration, updatePassword , updateParentsMail, getUserProfile , deleteUser , refresh};  
 
 
 
