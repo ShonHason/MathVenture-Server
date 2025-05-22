@@ -460,6 +460,29 @@ async getSession(
       return ;
     }
   };
+  public async getLessonMessages(req: Request, res: Response): Promise<void> {
+    const { lessonId } = req.params;
+  
+    // בדיקת תקינות ObjectId
+    if (!mongoose.Types.ObjectId.isValid(lessonId)) {
+      res.status(400).json({ error: "Invalid lessonId" });
+      return;
+    }
+  
+    try {
+      const lesson = await lessonsModel.findById(lessonId).select("messages");
+      if (!lesson) {
+        res.status(404).json({ error: "Lesson not found" });
+        return;
+      }
+  
+      res.status(200).json({ messages: lesson.messages });
+    } catch (err) {
+      console.error("Fetch messages error:", err);
+      res.status(500).json({ error: "Server error fetching messages" });
+    }
+  }
 }
+
 
 export default new LessonsController();
