@@ -42,10 +42,10 @@ export async function askQuestion(
   // Fetch & update lesson
   const lesson = await lessonsModel.findById(lessonId);
   if (!lesson) throw new Error("Lesson not found");
-  if (
-    lesson.progress === progressType.NOT_STARTED ||
-    lesson.progress === progressType.PAUSED
-  ) {
+    if (
+      lesson.progress === progressType.NOT_STARTED 
+    ) 
+    {
     lesson.progress = progressType.IN_PROGRESS;
   }
 

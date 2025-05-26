@@ -445,7 +445,7 @@ async getSession(
       const existingLesson = await lessonsModel.findOne({
         userId: new mongoose.Types.ObjectId(userId),
         subject:subject,
-        progress: "IN_PROGRESS",
+         progress: { $in: ["IN_PROGRESS", "NOT_STARTED"] },
       });
       
       if (existingLesson){
