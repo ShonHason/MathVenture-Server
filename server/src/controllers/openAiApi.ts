@@ -40,6 +40,8 @@ export async function askQuestion(
   lessonId?: string
 ): Promise<string> {
   // Fetch & update lesson
+  if(!lessonId) {
+    throw new Error("Lesson ID is required");}
   const lesson = await lessonsModel.findById(lessonId);
   if (!lesson) throw new Error("Lesson not found");
     if (
