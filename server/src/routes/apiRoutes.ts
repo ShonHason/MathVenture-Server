@@ -1,6 +1,6 @@
 // src/routes/apiRoutes.ts
 import { Router, Request, Response, NextFunction } from 'express';
-import { askQuestion } from '../controllers/openAiApi';
+import { askQuestion } from '../controllers/geminiApi';
 import ttsRouter from '../controllers/APIController/ttsController';
 
 const router = Router();

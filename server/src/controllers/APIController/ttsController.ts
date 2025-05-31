@@ -5,6 +5,7 @@ import path from 'path';
 
 // 1) Quick sanity check: make sure credentials file exists
 const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS!;
+console.log('🔍 Checking TTS credentials at:', credsPath);
 if (!fs.existsSync(credsPath)) {
   console.error('❌ TTS creds not found at', credsPath);
   throw new Error(`Missing TTS creds file: ${credsPath}`);

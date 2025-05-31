@@ -253,5 +253,6 @@ router.get(
 );
 router.post("/check-open-lesson", lessonsController.checkOpenLesson);
 router.get("/:lessonId/messages", lessonsController.getLessonMessages);
+router.get("/:lessonId/analytics", lessonsController.getAnalystics.bind(lessonsController));
 
 export default router;

@@ -1,8 +1,10 @@
+// src/controllers/lessonsController.ts
+
 import lessonsModel, { ILesson } from "../modules/lessonsModel";
 import { Request, Response, NextFunction } from "express";
 import { BaseController } from "./baseController";
 import mongoose from "mongoose";
-import { askQuestion } from "./openAiApi";
+import { askQuestion } from "./geminiApi";
 import { textToSpeechConvert } from "./APIController/ttsController";
 import sgMail from "@sendgrid/mail";
 import UserModel from "../modules/userModel";
@@ -10,9 +12,28 @@ import { progressType } from "../modules/enum/progress";
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
 
+// In-memory map to hold the latest expression for each lessonId
+// Key: lessonId, Value: arithmetic expression string (e.g. "2+3")
+const pendingQuestionKeys: Record<string, string> = {};
+
 class LessonsController extends BaseController<ILesson> {
+  private static questionCounter: number = 0;
+  public static readonly MAX_QUESTIONS = 15;
+
   constructor() {
     super(lessonsModel);
+  }
+
+  public static getQuestionCounter(): number {
+    return this.questionCounter;
+  }
+
+  public static incrementQuestionCounter(): void {
+    if (this.questionCounter < this.MAX_QUESTIONS) {
+      this.questionCounter++;
+    } else {
+      throw new Error("Maximum question limit reached");
+    }
   }
 
   private sanitizeSubject(raw: string): string {
@@ -23,6 +44,18 @@ class LessonsController extends BaseController<ILesson> {
     return subject;
   }
 
+  /**
+   * buildSystemPrompt:
+   * In Part 2, every math question must be exactly two lines:
+   *   Line 1: Hebrew question text (fully diacritized).
+   *   Line 2: Bare arithmetic expression (e.g. "2+3", "5-2").
+   *
+   * Example format (no JSON, markdown, or extra punctuation):
+   * ```
+   * אם יש לך 2 תפוחים ועוד 3 תפוחים, כמה תפוחים סך הכל?
+   * 2+3
+   * ```
+   */
   private buildSystemPrompt(
     username: string,
     grade: string,
@@ -32,254 +65,106 @@ class LessonsController extends BaseController<ILesson> {
     sampleQuestions: string[]
   ): string {
     const champion = gender === "female" ? "אלופה" : "אלוף";
+    const continueText =
+      gender === "female"
+        ? "תמשיכי כך, נכון! תשובתך נכונה"
+        : "תמשיך כך, נכון! תשיבתך נכונה";
     const startVerb = gender === "female" ? "בואי" : "בוא";
     const readyWord = gender === "female" ? "מוכנה" : "מוכן";
-    const youKnow = gender === "female" ? "את מכירה" : "אתה מכיר";
-    const youUnderstand = gender === "female" ? "הבנת" : "הבנת";
-    const youCalculated = gender === "female" ? "חישבת" : "חישבת";
-    const youThink = gender === "female" ? "את חושבת" : "אתה חושב";
-    const youCan = gender === "female" ? "את יכולה" : "אתה יכול";
-    const youGotConfused = gender === "female" ? "את מתבלבלת" : "אתה מתבלבל";
-    const dontWorry = gender === "female" ? "אל תדאגי" : "אל תדאג";
-    const dontGiveUp = gender === "female" ? "אל תתייאשי" : "אל תתייאש";
-    const dontStress = gender === "female" ? "אל תתלחצי" : "אל תתלחץ";
-    const youSaw = gender === "female" ? "ראית" : "ראית";
-    const doYouWant = gender === "female" ? "רוצה" : "רוצה";
-    const withYou = gender === "female" ? "איתך" : "איתך";
-    const youProgressed = gender === "female" ? "שהתקדמת" : "שהתקדמת";
-   
-    const thinkTogetherText = gender === "female"
-      ? "בואי נחשוב יחד על זה"
-      : "בוא נחשוב יחד על זה";
 
-    // Grade mapping for Hebrew grades
-    const gradeMap: { [key: string]: number } = {
-      'א': 1, 'ב': 2, 'ג': 3, 'ד': 4, 'ה': 5, 'ו': 6, 'ז': 7, 'ח': 8, 'ט': 9
-    };
-    
-    const gradeLevel = gradeMap[grade] || 1;
-    const isYoungStudent = gradeLevel <= 3;
-    const complexityNote = isYoungStudent 
-      ? "Use very simple language and basic examples suitable for young children"
-      : gradeLevel <= 6 
-        ? "Use age-appropriate language with moderate complexity"
-        : "Use more sophisticated explanations while keeping them clear";
+    const formattedSamples = sampleQuestions.map((q) => `- ${q}`).join("\n");
+    let questionText = `השאלה מספר ${
+      LessonsController.getQuestionCounter() + 1
+    } מתוך ${LessonsController.MAX_QUESTIONS}:`;
+    LessonsController.incrementQuestionCounter();
 
-    // Multiple greeting options
-
-
-    // Multiple lesson structure options
-    const lessonStructureOptions = [
-      `נעשה את השיעור בשלושה חלקים כיפיים:
-- חלק 1: נלמד את היסודות צעד אחר צעד (השאלות כאן לא נספרות מתוך ה-15)
-- חלק 2: חמש עשרה שאלות תרגול שהולכות ומתקשות
-האם התוכנית הזאת נשמעת טוב?`,
-      
-      `${startVerb} נחלק את השיעור לשלושה שלבים:
-- ,שלב ראשון: הכנה ולימוד הבסיס (בלי לספור שאלות)
-- שלב שני: חמש עשרה שאלות מאתגרות ומהנות
-מה ${gender === "female" ? "את אומרת" : "אתה אומר"} על התוכנית הזאת?`,
-
-      `יש לי תוכנית נהדרת בשבילך:
-- קודם נכיר את הנושא ביחד (זה לא חלק מה-15 שאלות)
-- אחר כך נפתור חמש עשרה שאלות כיפיות שהולכות ונהיות קשוחות יותר
-- בסוף נחגוג את ההצלחה!
- התוכנית נשמעת טוב?`,
-
-      `${startVerb} נעשה את זה בסדר הזה,:
-- חלק א': למידה והבנה של המושג ${subject} (שאלות הכנה בלבד)
-- חלק ב': חמש עשרה שאלות תרגול מדורגות לכיתה ${grade}
-${readyWord} לתוכנית הזאת?`
-    ];
-  
-    const formattedSamples = sampleQuestions.map(q => `- ${q}`).join("\n");
-  
     return `
-  You are a playful, creative, and warm-hearted math tutor for Hebrew-speaking children.
-  Address the student consistently using the correct feminine or masculine Hebrew forms based on their gender.
-  
-  🎯 STUDENT PROFILE:
-  - Name: ${username}
-  - Grade: ${grade} (Grade level ${gradeLevel} - ${complexityNote})
-  - Gender: ${gender} (use appropriate Hebrew forms throughout)
-  - Subject: ${subject}
-  
-  🔴 CRITICAL RULES:
-  - Respond ONLY in Hebrew - never mix languages in your responses
-  - Under no circumstances include JSON, code snippets, or structured objects in your responses
-  - The "text" field must include both your encouragement and the full next question
-  - Do NOT use the sample questions directly - they are for inspiration only, create original questions
-  - Double-check every calculation before saying "נכון" (correct)
-  - Only say "נכון" when the student's answer is mathematically accurate
-  - Use clear, natural Hebrew without excessive diacritical marks
-  - Adapt difficulty level based on grade ${grade} (level ${gradeLevel})
-  - VARY your responses - choose randomly from the provided options to avoid repetition
-  
-  ---
-  
-  👋 LESSON OPENING :
-  when the student starts the lesson, We greet him with a warm welcome so you dont need to greet them just jump to the next section.
-  ---
-  
-  🗺️ LESSON STRUCTURE (Choose randomly):
-  ${lessonStructureOptions.map((structure, index) => `Option ${index + 1}: "${structure}"`).join("\n")}
-  
-  ---
-  
-  📘 BASIC CONCEPTS EXPLANATION (after approval):
-  🚨 IMPORTANT: In this phase, DO NOT track correct/incorrect answers for lesson flow!
-  
-  - Explain "${subject}" in multiple short, separate messages
-  - One concept per message with simple language appropriate for grade ${grade} (level ${gradeLevel})
-  - If there are multiple sub-topics, ask: "האם ${youKnow} את [subtopic]?"
-  - If student doesn't know subtopics, explain them one by one
-  - Use relatable examples from children's daily life:
-    * Percentages: 100 colorful stickers, balloons, or candy pieces
-    * Fractions: pizza or cake slices, chocolate bars
-    * Multiplication: groups of toys, teams of players
-    * Division: sharing candies, dividing into equal groups
-  - After each explanation, you MAY ask simple check questions:
-    "${youUnderstand}?" / "${readyWord} להמשיך?" / "ברור?" / "הגיוני?" / "יש שאלות?"
-  - Keep check questions simple and non-mathematical
-  - When student shows understanding, vary responses:
-    "מעולה! ${startVerb} נמשיך" / "נהדר! קדימה הלאה" / "כל הכבוד! ${startVerb} נתקדם" / "יפה! ${startVerb} נמשיך"
-  - Remind them: "כמובן שאנחנו עוד בחלק הראשון - זה רק הכנה" / "זה עדיין השלב הראשון של ההכנה"
-  - Don't skip this part unless student explicitly asks to skip
-  
-  ---
-  
-  🎯 SAMPLE QUESTIONS (reference only - DO NOT COPY):
-  ${formattedSamples}
-  
-  ---
-  
-  📚 PRACTICE PHASE (15 Questions):
-  NOW start counting answers for lesson flow!
-  
-  - Ask exactly 15 unique, original questions appropriate for grade ${grade} (level ${gradeLevel})
-  - Before each question say: "שאלה [number] מתוך 15"
-  - Each question should be slightly more challenging than the previous
-  - Every answer must be a different numeric result
-  - If student becomes frustrated, adjust difficulty downward
-  - When user answers question 15/15, vary completion responses:
-    "מעולה! סיימנו את השאלות, היה לי ממש כיף לעשות ${withYou} את השיעור הזה ואני מרגיש${gender === "female" ? "ה" : ""} ${youProgressed} המון"
-    "וואו! סיימנו! איזה שיעור נהדר היה לנו, ${champion}! אני רואה שהתפתח${gender === "female" ? "ת" : "ת"} ממש הרבה!"
-    "כל הכבוד! 15 מתוך 15 בוצעו בהצלחה! היה כיף ללמד ${gender === "female" ? "אותך" : "אותך"}, ${champion}!"
-  
-  ---
-  
-  ✅ CORRECT ANSWER RESPONSE (Choose randomly):
-  
-  For females:
-  - "כל הכבוד! תשובה מצוינת! התשובה הנכונה היא [number]. מוכנה לשאלה הבאה?"
-  - "מעולה! פגעת בול! התשובה היא [number]. בואי נמשיך?"
-  - "וואו! איזו תשובה נהדרת! [number] זה נכון בדיוק. קדימה לשאלה הבאה?"
-  - "יפה מאוד! חישבת נכון - התשובה היא [number]. מוכנה להמשיך?"
-  - "מדהים! התשובה הנכונה היא [number]. בואי נתקדם לשאלה הבאה!"
-  - "כל הכבוד על החישוב! [number] זה בדיוק נכון. מוכנה?"
-  - "יש לך ראש למתמטיקה! התשובה היא [number]. קדימה הלאה?"
-  - "נפלא! [number] זה מה שחיפשתי! בואי נמשיך לשאלה הבאה?"
-  - "בול! התשובה הנכונה היא [number]. איזו אלופה! מוכנה לעוד?"
-  - "מושלם! חישבת נכון ותקבלי [number]. בואי נתקדם!"
-  
-  For males:
-  - "כל הכבוד! תשובה מצוינת! התשובה הנכונה היא [number]. מוכן לשאלה הבאה?"
-  - "מעולה! פגעת בול! התשובה היא [number]. בוא נמשיך?"
-  - "וואו! איזו תשובה נהדרת! [number] זה נכון בדיוק. קדימה לשאלה הבאה?"
-  - "יפה מאוד! חישבת נכון - התשובה היא [number]. מוכן להמשיך?"
-  - "מדהים! התשובה הנכונה היא [number]. בוא נתקדם לשאלה הבאה!"
-  - "כל הכבוד על החישוב! [number] זה בדיוק נכון. מוכן?"
-  - "יש לך ראש למתמטיקה! התשובה היא [number]. קדימה הלאה?"
-  - "נפלא! [number] זה מה שחיפשתי! בוא נמשיך לשאלה הבאה?"
-  - "בול! התשובה הנכונה היא [number]. איזה אלוף! מוכן לעוד?"
-  - "מושלם! חישבת נכון ותקבל [number]. בוא נתקדם!"
-  
-  ---
-  
-  ❌ INCORRECT ANSWER RESPONSE:
-  
-  🥇 First mistake (Choose randomly):
-  - "לא בדיוק, ${startVerb} ננסה שוב: [repeat question]"
-  - "עוד לא נכון, אבל קרוב! ${startVerb} נחזור על השאלה: [repeat question]"
-  - "לא זה, אבל ${dontGiveUp}! השאלה שוב: [repeat question]"
-  - "טעית קצת, זה בסדר! ${startVerb} ננסה עוד פעם: [repeat question]"
-  - "לא מדויק, אבל אנחנו נגיע לזה! ${startVerb} ננסה שוב: [repeat question]"
-  - "עדיין לא, אבל ${youCan} בהחלט! עוד פעם: [repeat question]"
-  
-  🥈 Second mistake (Choose randomly for opening):
-  Opening options:
-  - "עדיין לא נכון, ${thinkTogetherText}"
-  - "עוד לא זה, ${startVerb} נחשוב יחד"  
-  - "לא מדויק, ${startVerb} נעבוד על זה יחד"
-  - "טרם הגענו לתשובה, ${startVerb} נבין יחד מה קרה"
-  
-  **DIAGNOSTIC QUESTIONS** - Ask to understand the mistake:
-  - "איך ${youCalculated} את זה?"
-  - "מה הצעד הראשון שעשית?"
-  - "איפה ${youThink} שהיתה הטעות?"
-  - "${youCan} להסביר לי את החישוב שלך?"
-  - "איזו שיטה השתמשת?"
-  - "מה עבר לך בראש כשפתרת?"
-  
-  Based on their explanation, provide targeted help:
-  - If calculation error: "רואה את הטעות? בשלב [X] צריך להיות [correct step]"
-  - If concept confusion: "אה, ${youGotConfused} בין [concept A] ל[concept B]"
-  - If method error: "הכיוון נכון, אבל השיטה קצת שונה. ${startVerb} נעשה את זה ככה..."
-  Give a focused hint without solving completely
-  
-  🥉 Third mistake (Choose randomly for opening):
-  - "${dontWorry}, קורה לכולם! ${startVerb} נפתור את זה יחד צעד אחר צעד"
-  - "זה בסדר גמור! ${startVerb} נעבור על זה ביחד בסבלנות"
-  - "אל ${gender === "female" ? "תתרגזי" : "תתרגז"} על עצמך! ${startVerb} נלמד את זה יחד"
-  
-  Then:
-  1. Break down the solution step by step in a playful, encouraging way
-  2. Explain WHY each step is correct
-  3. "התשובה הנכונה היא [number]. ${youSaw} איך הגענו אליה?"
-  
-  ⚡ If student asks "מה התשובה?" - provide the answer immediately with explanation.
-  
-  ---
-  
-  🏁 LESSON COMPLETION:
-  If student says "נגמר", "זהו", "רוצה לסיים", "מספיק", or shows they want to end:
-  
-  First, give the student a brief, warm farewell in Hebrew (choose randomly):
-  - "תודה רבה על שיעור נהדר! נתראה בפעם הבאה, ${champion}!"
-  - "היה כיף ללמד ${gender === "female" ? "אותך" : "אותך"}! להתראות, ${champion} שלי!"
-  - "איזה שיעור מדהים היה לנו! בהצלחה, ${champion}!"
-  - "כל הכבוד על השיעור! נפגש שוב בקרוב, ${champion}!"
-  
-  Then, provide a detailed summary report in English for the teacher/parent including:
-  - Student profile: ${username}, Grade ${grade} (Level ${gradeLevel}), Subject: ${subject}
-  - Topics covered during the lesson
-  - Student's performance and strengths 
-  - Areas where the student struggled
-  - Specific mistakes made and error patterns identified
-  - Diagnostic insights from second-mistake analysis
-  - Concepts to review based on grade ${grade} level ${gradeLevel}
-  - Recommended next steps for improvement
-  - Overall assessment of the student's engagement and progress
-  - Suggestions for future lessons appropriate for grade ${grade}
-  
-  ---
-  
-  🌟 EMERGENCY SITUATIONS (Choose randomly):
-  - Student frustrated: "${dontStress}, אנחנו נעבור על זה ביחד. ${doYouWant} הפסקה קטנה?" / "רגע, ${startVerb} ניקח נשימה. הכל יהיה בסדר!"
-  - Student confused: Return to basic concepts with grade-appropriate explanations
-  - Student bored: Add playful elements suitable for grade ${grade} (level ${gradeLevel})
-  - Always remain patient, warm, and encouraging
-  - Adapt your teaching style to both the student's needs and grade level in real-time
-  
-  ---
-  
-  💫 TONE AND PERSONALITY:
-  You're not just a tutor - you're the student's math adventure companion! 
-  Stay magical, kind, playful, and supportive throughout the entire lesson.
-  Make math feel like an exciting journey rather than work.
-  Remember you're teaching a grade ${grade} (level ${gradeLevel}) student, so adjust your energy and examples accordingly.
-  ALWAYS vary your responses by choosing randomly from the provided options - never be repetitive!
-  `.trim();
+You are a playful, creative, and warm-hearted math tutor for young Hebrew-speaking children.
+Address the student consistently using correct feminine or masculine Hebrew forms based on their gender.
+
+Important instructions:
+- Once we enter Part 2 (the 15-question section), every math question MUST be exactly two lines:
+  1) Line 1: the Hebrew question text (fully diacritics).
+  2) Line 2: the bare arithmetic expression (e.g. "2+3", "5-2").
+
+  Example (no JSON, no markdown, no extra punctuation):
+  \`\`\`
+  אם יש לך 2 תפוחים ועוד 3 תפוחים, כמה תפוחים סך הכל?
+  2+3
+  \`\`\`
+
+- Do not embed the expression in brackets, quotes, JSON. It must appear verbatim on line 2.
+- If the student’s answer is incorrect, repeat the exact same two-line question (same expression).
+- Do not output any other JSON or structured format.
+- Do not use the sample questions directly; they are for inspiration only.
+- Before declaring an answer correct, double- or triple-check your math internally.
+- Never say "נכון" unless the student’s numeric answer is exactly correct.
+- All responses (questions and feedback) must be in Hebrew with full diacritics.
+
+Greeting (first AI message):
+  שלום ${username}!
+  נעים מאוד לראותך היום, ${champion}.
+  ${startVerb} לשיעור מתמטיקה בנושא ${subject}. ${readyWord} להתחיל?
+
+Lesson structure (second AI message):
+  - Part 1: Explain basic concepts slowly (questions here do NOT count toward the 15).
+    When you ask a concept-check question, preface with "אין לך מה לדאוג, זה לא חלק מההשאלות של החלק השני".
+  - After Part 1: say "עכשיו נעבור לחלק השני של השיעור".
+  - Part 2: Exactly 15 math questions, numbered 1–15, each slightly harder than the last.
+    Every question must be two lines (Hebrew + expression). For example:
+    \`\`\`
+    השאלה מספר ${LessonsController.getQuestionCounter()} מתוך 15:
+    אם יש לך 2 תפוחים ועוד 3 תפוחים, כמה תפוחים סך הכל?
+    2+3
+    \`\`\`
+  - Ask if this plan works: "${readyWord} לזה?"
+
+Basic Concepts Explanation (after approval):
+  - Explain the topic "${subject}" in multiple short messages—one concept per message.
+  - Use simple language, relatable examples, analogies.
+  - After each concept, ask a small comprehension question (these do NOT count toward the 15).
+  - Pause to let the student absorb before continuing.
+
+Sample questions (for reference only):
+🛑 Do NOT copy wording or structure—be creative!
+${formattedSamples}
+
+Lesson rules:
+  - Exactly 15 unique math questions in Part 2.
+  - Number them: "השאלה מספר X מתוך 15:" before each two-line block.
+  - Each expression must be new (never reuse "2+3").
+  - Each answer must be a different numeric result.
+
+Answer checking:
+  - If the student’s numeric answer is correct:
+    1. Say "…נכון מאוד! תשובתך נכונה."
+    2. Repeat: "התשובה היא <correct number>."
+    3. Ask: "${readyWord} לשאלה הבאה?"
+  - If the student’s numeric answer is incorrect:
+    1️⃣ First wrong attempt:
+      - Say: "לא נכון, תנסה לחשוב על זה שוב, הפעם קצת יותר לאט."
+      - Repeat the exact same two-line question.
+    2️⃣ Second wrong attempt:
+      - Say: "לא נכון, בוא ננסה לחשוב ביחד."
+      - Provide a hint, then repeat the exact same two-line question.
+    3️⃣ Third wrong attempt:
+      - Provide a playful step-by-step explanation.
+      - End with "התשובה היא <correct number>."
+
+Only reveal the numeric answer early if the student explicitly asks "מה התשובה?"
+
+After a correct answer:
+  - Say "יופי, תשובתך נכונה! התשובה היא <correct number>. מוכן לשאלה הבאה?" and proceed.
+
+End of lesson:
+  If the student says "סוף שיעור", give a warm summary in Hebrew:
+    - Topics covered
+    - Student’s strengths
+    - A friendly tip for improvement
+
+Remain kind, playful, and encouraging—their math adventure buddy!
+`.trim();
+
   }
 
   public reportLesson = async (req: Request, res: Response): Promise<void> => {
@@ -309,7 +194,7 @@ ${readyWord} לתוכנית הזאת?`
         from: "mathventurebot@gmail.com",
         subject: `MathVenture - Lesson Report for ${lesson.subject}`,
         text: `Hello ${user.parent_name},\n\nHere is the report for your child's lesson on ${lesson.subject}.\n\nLesson ID: ${lesson._id}\nStart Time: ${lesson.startTime}\nEnd Time: ${lesson.endTime}\nProgress: ${lesson.progress}\n\nBest regards,\nMathVenture Team`,
-        html: `<p>Hello ${user.parent_name},</p><p>Here is the report for your child's lesson on ${lesson.subject}.</p><p>Lesson ID: ${lesson._id}</p><p>Start Time: ${lesson.startTime}</p><p>End Time: ${lesson.endTime}</p><p>Progress: ${lesson.progress}</p><br><p>Best regards,</p><p>MathVenture Team</p>`
+        html: `<p>Hello ${user.parent_name},</p><p>Here is the report for your child's lesson on ${lesson.subject}.</p><p>Lesson ID: ${lesson._id}</p><p>Start Time: ${lesson.startTime}</p><p>End Time: ${lesson.endTime}</p><p>Progress: ${lesson.progress}</p><br><p>Best regards,</p><p>MathVenture Team</p>`,
       };
       await sgMail.send(msg);
       res.status(200).send("Email sent successfully");
@@ -317,7 +202,7 @@ ${readyWord} לתוכנית הזאת?`
       console.error("Error in reportLesson:", err);
       res.status(500).send("Internal Server Error");
     }
-  }
+  };
 
   /**
    * POST /lessons/startNew
@@ -325,7 +210,8 @@ ${readyWord} לתוכנית הזאת?`
   public startLesson = async (req: Request, res: Response): Promise<void> => {
     try {
       const { lessonId } = req.params as { lessonId?: string };
-      const { userId, subject: rawSubject, username, grade, rank, sampleQuestions } = req.body;
+      const { userId, subject: rawSubject, username, grade, rank, sampleQuestions } =
+        req.body;
 
       if (lessonId) {
         if (!mongoose.Types.ObjectId.isValid(lessonId)) {
@@ -340,6 +226,7 @@ ${readyWord} לתוכנית הזאת?`
         res.status(200).json({
           _id: existing._id,
           mathQuestionsCount: existing.mathQuestionsCount,
+          correctAnswersCount: existing.correctAnswersCount,
         });
         return;
       }
@@ -382,11 +269,15 @@ ${readyWord} לתוכנית הזאת?`
         progress: "NOT_STARTED",
         subject,
         messages: [{ role: "system", content: systemPrompt }],
+        mathQuestionsCount: 0,
+        correctAnswersCount: 0,
+        questionLogs: [],
       });
 
       res.status(201).json({
         _id: newLesson._id,
         mathQuestionsCount: newLesson.mathQuestionsCount,
+        correctAnswersCount: newLesson.correctAnswersCount,
       });
     } catch (err) {
       console.error("Error in startLesson:", err);
@@ -395,34 +286,34 @@ ${readyWord} לתוכנית הזאת?`
   };
 
   /**
- * GET /lessons/:lessonId/session
- * Returns the full conversation history for this lesson.
- */
-async getSession(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { lessonId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(lessonId)) {
-      res.status(400).json({ error: "Invalid lessonId" });
-      return;
-    }
+   * GET /lessons/:lessonId/session
+   * Returns the full conversation history for this lesson.
+   */
+  async getSession(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { lessonId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(lessonId)) {
+        res.status(400).json({ error: "Invalid lessonId" });
+        return;
+      }
 
-    const lesson = await lessonsModel.findById(lessonId);
-    if (!lesson) {
-      res.status(404).json({ error: "Lesson not found" });
-      return;
-    }
+      const lesson = await lessonsModel.findById(lessonId);
+      if (!lesson) {
+        res.status(404).json({ error: "Lesson not found" });
+        return;
+      }
 
-    // Send back the messages array
-    res.json({ messages: lesson.messages });
-  } catch (err) {
-    console.error("❌ /lessons/:lessonId/session error:", err);
-    next(err);
+      // Send back the messages array
+      res.json({ messages: lesson.messages });
+    } catch (err) {
+      console.error("❌ /lessons/:lessonId/session error:", err);
+      next(err);
+    }
   }
-}
 
   /**
    * Retrieve lessons by userId
@@ -472,42 +363,75 @@ async getSession(
   }
 
   /**
-   * Chat endpoint: send question to OpenAI and return answer
+   * Chat endpoint: send question to Gemini and return answer
    */
- // inside LessonsController
- // src/controllers/lessonsController.ts
- async chat(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { lessonId } = req.params;
-  const { question } = req.body;
+  async chat(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const { lessonId } = req.params;
+    const { question: studentAnswer } = req.body as { question?: string };
 
-  try {
-    // 1) Ask the AI
-    const raw = await askQuestion(question, "", lessonId);
+    if (!studentAnswer) {
+      res.status(400).json({ error: "Missing 'question' in request body" });
+      return;
+    }
 
-    // 2) Handle done‐payload
+    // 1) Load lesson
+    const lessonBefore = await lessonsModel.findById(lessonId);
+    if (!lessonBefore) {
+      res.status(404).json({ error: "Lesson not found" });
+      return;
+    }
+
+    // 2) Extract last AI‐asked message (only used for logging “question”)
+    const lastAiMessage = [...lessonBefore.messages]
+      .reverse()
+      .find((m) => m.role === "assistant");
+    const aiPreviousHebrew = lastAiMessage?.content ?? ""; // used for logging
+    const questionTime = new Date();
+
+    // 3) Send student's answer (or request next question) to Gemini
+    let raw: string;
+    try {
+      raw = await askQuestion(studentAnswer, "", lessonId);
+    } catch (err) {
+      console.error("Error calling Gemini:", err);
+      return next(err);
+    }
+
+    // 4) If it’s the JSON “done” payload, finish the lesson (unchanged)
     if (raw.trim().startsWith("{")) {
       try {
         const donePayload = JSON.parse(raw);
         if (donePayload.done) {
-          // — a) Mark lesson DONE & set endTime
+          // — a) Mark lesson DONE
           const lesson = await lessonsModel.findByIdAndUpdate(
             lessonId,
-            {
-              progress: progressType.DONE,
-              endTime: new Date(),
-            },
+            { progress: progressType.DONE, endTime: new Date() },
             { new: true }
           );
           if (!lesson) {
-            res.status(404).json({ error: "השיעור לא נמצא" });
+            res.status(404).json({ error: "Lesson not found" });
             return;
           }
 
-          // — b) Lookup user & pick parent_email
+          // — b) Compute analytics (unchanged)
+          const full = await lessonsModel.findById(lessonId).lean();
+          const logs = full?.questionLogs || [];
+          const total = logs.length;
+          const correct = logs.filter((l) => l.isCorrect).length;
+          const avgMs = total
+            ? logs.reduce((sum, l) => sum + (l.responseTimeMs || 0), 0) / total
+            : 0;
+          donePayload.analytics = {
+            totalQuestions: total,
+            correctAnswers: correct,
+            accuracyPct: total ? (correct / total) * 100 : 0,
+            avgResponseTimeMs: avgMs,
+          };
+
+          // — c) Send summary email (unchanged)
           const user = await UserModel.findById(lesson.userId).lean();
           const toEmail = user?.parent_email || user?.email;
           if (toEmail) {
-            // — c) Send summary email
             await sgMail.send({
               to: toEmail,
               from: "mathventurebot@gmail.com",
@@ -515,44 +439,385 @@ async getSession(
               text: `שלום,
 
 השיעור בנושא "${lesson.subject}" הושלם בהצלחה!
-חוזקות: ${donePayload.strengths || "–"}
-נקודות לשיפור: ${donePayload.weaknesses || "–"}
-טיפים: ${donePayload.tips || "–"}
 
-בהצלחה בשיעורים הבאים!`,
+חוזקות:   ${donePayload.strengths   || "–"}
+נקודות לשיפור: ${donePayload.weaknesses || "–"}
+טיפים:    ${donePayload.tips        || "–"}
+
+— סטטיסטיקות שיעור —
+שאלות סך הכל: ${donePayload.analytics.totalQuestions}
+תשובות נכונות: ${donePayload.analytics.correctAnswers} (${donePayload.analytics.accuracyPct.toFixed(1)}%)
+זמן ממוצע למענה: ${(donePayload.analytics.avgResponseTimeMs / 1000).toFixed(2)} שנניות
+
+בהצלחה בשיעורים הבאים!
+`,
               html: `<p>שלום,</p>
-                     <p>השיעור בנושא "<strong>${lesson.subject}</strong>" הושלם בהצלחה!</p>
-                     <ul>
-                       <li><strong>חוזקות:</strong> ${donePayload.strengths || "–"}</li>
-                       <li><strong>נקודות לשיפור:</strong> ${donePayload.weaknesses || "–"}</li>
-                       <li><strong>טיפים:</strong> ${donePayload.tips || "–"}</li>
-                     </ul>
-                     <p>בהצלחה בשיעורים הבאים!</p>`,
+<p>השיעור בנושא "<strong>${lesson.subject}</strong>" הושלם בהצלחה!</p>
+<ul>
+  <li><strong>חוזקות:</strong> ${donePayload.strengths   || "–"}</li>
+  <li><strong>נקודות לשיפור:</strong> ${donePayload.weaknesses || "–"}</li>
+  <li><strong>טיפים:</strong> ${donePayload.tips        || "–"}</li>
+</ul>
+<hr/>
+<h4>סטטיסטיקות שיעור:</h4>
+<ul>
+  <li>שאלות סך הכל: ${donePayload.analytics.totalQuestions}</li>
+  <li>תשובות נכונות: ${donePayload.analytics.correctAnswers} (${donePayload.analytics.accuracyPct.toFixed(1)}%)</li>
+  <li>זמן ממוצע למענה: ${(donePayload.analytics.avgResponseTimeMs / 1000).toFixed(2)} שנניות</li>
+</ul>
+<p>בהצלחה בשיעורים הבאים!</p>`,
             });
           }
 
-          // — d) Return the payload so the frontend sees { done: true, … }
           res.json(donePayload);
           return;
         }
+        // else: fall through to normal Q&A
       } catch {
-        // not valid JSON, fall through to normal answer
+        // not valid JSON → treat as normal text below
       }
     }
 
-    // 3) Normal Q&A flow
-    const answer = raw;
-    const lesson = await lessonsModel.findById(lessonId);
-    const mathQuestionsCount = lesson?.mathQuestionsCount ?? 0;
-    res.json({ answer, mathQuestionsCount });
-  } catch (err) {
-    console.error("❌ /lessons/:lessonId/chat error:", err);
-    next(err);
+    // --------------------------------------------------------------------------------
+    // 5) Distinguish:
+    //    A) A NEW math question (two lines: Hebrew + expression)
+    //    B) A computed result (JSON with { type: "math", ... })
+    //    C) Plain Hebrew feedback (praise or "לא נכון")
+    //    D) Gemini repeated the question (two lines again)
+    // --------------------------------------------------------------------------------
+
+    // — A) Check for a two-line math question:
+    //    Regex: ^([\s\S]+?)\r?\n([0-9+\-*/\s]+)\s*$
+    //    Group 1 = Hebrew question (line 1), Group 2 = expression (line 2).
+    const twoLineMatch = raw.match(/^([\s\S]+?)\r?\n([0-9+\-*/\s]+)\s*$/);
+
+    if (twoLineMatch) {
+      // AI is either asking a brand-new math question, OR
+      // repeating the same question after "לא נכון".
+
+      const newQuestionText = twoLineMatch[1].trim();  // Hebrew (line 1)
+      const newQuestionKey = twoLineMatch[2].trim();   // expression (line 2), e.g. "2+3"
+
+      // CASE: is Gemini repeating the same expression AFTER the student answered?
+      // Check if pendingQuestionKeys[lessonId] exists and equals newQuestionKey
+      const previousKey = pendingQuestionKeys[lessonId];
+      if (previousKey && previousKey === newQuestionKey) {
+        // Gemini is repeating the same question because it thought student was wrong.
+        // But maybe the student was actually correct. Check numeric equality:
+        const expr = newQuestionKey;
+        let correctValue: number;
+        try {
+          // compute 2+3, 5-2 etc:
+          // eslint-disable-next-line no-new-func
+          correctValue = new Function(`"use strict"; return (${expr});`)();
+        } catch {
+          correctValue = NaN;
+        }
+        // parse studentAnswer:
+        const numericAns = parseFloat(studentAnswer.replace(",", ".").trim());
+        if (!isNaN(numericAns) && Math.abs(numericAns - correctValue) < 1e-9) {
+          // Student was correct, but Gemini is mistakenly repeating question.
+          // We override: mark correct at first attempt.
+
+          // 1) Check if first attempt on this questionKey:
+          const alreadyAttempted = lessonBefore.questionLogs.some(
+            (log) => log.questionKey === newQuestionKey
+          );
+
+          if (!alreadyAttempted) {
+            // Increment both counters:
+            await lessonsModel.findByIdAndUpdate(
+              lessonId,
+              {
+                $inc: {
+                  mathQuestionsCount: 1,
+                  correctAnswersCount: 1,
+                },
+              },
+              { new: true }
+            );
+          }
+          // Log as correct:
+          const answerTime = new Date();
+          const responseTimeMs = answerTime.getTime() - questionTime.getTime();
+          await lessonsModel.findByIdAndUpdate(
+            lessonId,
+            {
+              $push: {
+                questionLogs: {
+                  questionKey: newQuestionKey,
+                  question: aiPreviousHebrew,
+                  questionTime,
+                  answer: studentAnswer,
+                  answerTime,
+                  isCorrect: true,
+                  responseTimeMs,
+                  aiResponse: `יופי! תשובתך נכונה. התשובה היא ${correctValue}.`,
+                },
+              },
+            },
+            { new: true }
+          );
+
+          // Clear pending:
+          delete pendingQuestionKeys[lessonId];
+
+          // Now request next question from Gemini:
+          let nextRaw: string;
+          try {
+            nextRaw = await askQuestion("מוכן לשאלה הבאה?", "", lessonId);
+          } catch (err) {
+            console.error("Error fetching next question:", err);
+            return next(err);
+          }
+
+          // NextRaw should be two-line: Hebrew + expression
+          const nextMatch = nextRaw.match(/^([\s\S]+?)\r?\n([0-9+\-*/\s]+)\s*$/);
+          if (nextMatch) {
+            const nextQuestionText = nextMatch[1].trim();
+            const nextQuestionKey = nextMatch[2].trim();
+            // push Hebrew part only:
+            await lessonsModel.findByIdAndUpdate(
+              lessonId,
+              {
+                $push: {
+                  messages: { role: "assistant", content: nextQuestionText },
+                },
+              },
+              { new: true }
+            );
+            // store new key:
+            pendingQuestionKeys[lessonId] = nextQuestionKey;
+
+            const updatedLesson = await lessonsModel.findById(lessonId).lean();
+            if (!updatedLesson) {
+              res.status(404).json({ error: "Lesson not found" });
+              return;
+            }
+            res.json({
+              answer:               `יופי! תשובתך נכונה. התשובה היא ${correctValue}.`,
+              nextQuestion:         nextQuestionText,
+              mathQuestionsCount:   updatedLesson.mathQuestionsCount,
+              correctAnswersCount:  updatedLesson.correctAnswersCount,
+              isCorrect:            true,
+            });
+            return;
+          } else {
+            // Gemini did not return a well-formed two-line next question.
+            // Fallback: just return the raw nextRaw as feedback:
+            const updatedLesson = await lessonsModel.findById(lessonId).lean();
+            if (!updatedLesson) {
+              res.status(404).json({ error: "Lesson not found" });
+              return;
+            }
+            res.json({
+              answer:               `יופי! תשובתך נכונה. התשובה היא ${correctValue}.`,
+              nextQuestion:         nextRaw,
+              mathQuestionsCount:   updatedLesson.mathQuestionsCount,
+              correctAnswersCount:  updatedLesson.correctAnswersCount,
+              isCorrect:            true,
+            });
+            return;
+          }
+        }
+        // Else: student truly was wrong (numeric mismatch). Let original two-line question stand.
+      }
+
+      // CASE: A brand-new question (pendingQuestionKeys not set yet):
+      // or Gemini legitimately re-asked because student was wrong.
+      // 5.A.1) Push only the Hebrew question text into lesson.messages
+      await lessonsModel.findByIdAndUpdate(
+        lessonId,
+        {
+          $push: {
+            messages: {
+              role:    "assistant",
+              content: newQuestionText, // only Hebrew, not expression
+            },
+          },
+        },
+        { new: true }
+      );
+
+      // 5.A.2) Store the expression temporarily in memory:
+      pendingQuestionKeys[lessonId] = newQuestionKey;
+
+      // 5.A.3) Return so the UI sees only the Hebrew question text:
+      res.json({
+        answer:               newQuestionText,
+        mathQuestionsCount:   lessonBefore.mathQuestionsCount,
+        correctAnswersCount:  lessonBefore.correctAnswersCount,
+        isCorrect:            false,
+      });
+      return;
+    }
+
+    // — B) If not a two-line question, maybe it’s JSON with { type: "math", result: … }
+    let feedback = "";
+    let isMathPayload = false;
+    let answeredCorrectly = false;
+    let correctResult: number | null = null;
+
+    if (raw.trim().startsWith("{")) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.type === "math") {
+          // The AI computed the result on its own
+          isMathPayload = true;
+          answeredCorrectly = true;
+          correctResult = parsed.result;
+          feedback = `התוצאה היא ${parsed.result}.`;
+        }
+      } catch {
+        // not valid JSON → will treat as plain Hebrew in step C
+      }
+    }
+
+    // — C) If not JSON math, treat raw as plain Hebrew feedback:
+    if (!isMathPayload) {
+      feedback = raw.trim();
+      const noNikud = feedback
+        .normalize("NFD")
+        .replace(/[\u0591-\u05C7]/g, "");
+
+      if (/תשובתך נכונה/.test(noNikud)) {
+        isMathPayload = true;
+        answeredCorrectly = true;
+      } else if (/לא נכון/.test(noNikud)) {
+        isMathPayload = true;
+        answeredCorrectly = false;
+      }
+    }
+
+    // --------------------------------------------------------------------------------
+    // 6) If it’s math-related feedback (isMathPayload===true), log it using pendingQuestionKeys:
+    // --------------------------------------------------------------------------------
+   if (isMathPayload) {
+  // Retrieve the expression we stored earlier:
+  const questionKey = pendingQuestionKeys[lessonId] || "";
+
+  // Check if this questionKey already appears in questionLogs
+  const alreadyAttempted = lessonBefore.questionLogs.some(
+    (log) => log.questionKey === questionKey
+  );
+
+  if (!alreadyAttempted) {
+    // FIRST time seeing this expression:
+    //   – If student was correct → increment BOTH counters.
+    //   – If student was wrong   → increment ONLY mathQuestionsCount.
+    if (answeredCorrectly) {
+      await lessonsModel.findByIdAndUpdate(
+        lessonId,
+        {
+          $inc: {
+            mathQuestionsCount: 1,
+            correctAnswersCount: 1,
+          },
+        },
+        { new: true }
+      );
+    } else {
+      await lessonsModel.findByIdAndUpdate(
+        lessonId,
+        {
+          $inc: {
+            mathQuestionsCount: 1,
+          },
+        },
+        { new: true }
+      );
+    }
   }
+  // If alreadyAttempted === true, do NOT increment anything.
+
+  // Log this attempt with isCorrect = answeredCorrectly:
+  const answerTime = new Date();
+  const responseTimeMs = answerTime.getTime() - questionTime.getTime();
+  await lessonsModel.findByIdAndUpdate(
+    lessonId,
+    {
+      $push: {
+        questionLogs: {
+          questionKey: questionKey,
+          question: aiPreviousHebrew,
+          questionTime,
+          answer: studentAnswer,
+          answerTime,
+          isCorrect: answeredCorrectly,
+          responseTimeMs,
+          aiResponse: feedback,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  // Clear out the stored expression so next question will be fresh:
+  delete pendingQuestionKeys[lessonId];
 }
 
+    // — If it was NOT math feedback, strip any "*" from plain feedback:
+    if (!isMathPayload) {
+      feedback = raw.trim().replace(/\*/g, "");
+    }
 
-  
+    // --------------------------------------------------------------------------------
+    // 7) Push the student’s answer + AI feedback into lesson.messages:
+    // --------------------------------------------------------------------------------
+    lessonBefore.messages.push({
+      role:    "user",
+      content: studentAnswer,
+    });
+    lessonBefore.messages.push({
+      role:    "assistant",
+      content: feedback,
+    });
+    await lessonBefore.save();
+
+    // --------------------------------------------------------------------------------
+    // 8) Return to the UI: feedback + updated mathQuestionsCount + correctAnswersCount
+    // --------------------------------------------------------------------------------
+    const updatedLesson = await lessonsModel.findById(lessonId).lean();
+    res.json({
+      answer:               feedback,
+      mathQuestionsCount:   updatedLesson?.mathQuestionsCount ?? 0,
+      correctAnswersCount:  updatedLesson?.correctAnswersCount ?? 0,
+      isCorrect:            isMathPayload ? answeredCorrectly : false,
+    });
+  }
+
+  async getAnalystics(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const { lessonId } = req.params;
+    try {
+      const lesson = await lessonsModel
+        .findById(lessonId)
+        .select("questionLogs mathQuestionsCount correctAnswersCount")
+        .lean();
+      if (!lesson) {
+        res.status(404).json({ error: "Lesson not found" });
+        return;
+      }
+      const logs = lesson.questionLogs;
+      const total = logs.length;
+      const correct = logs.filter((log) => log.isCorrect).length;
+      const averageTime =
+        total > 0
+          ? logs.reduce((sum, log) => sum + (log.responseTimeMs || 0), 0) / total
+          : 0;
+      res.json({
+        totalQuestions:        total,
+        correctAnswers:        correct,
+        accuracyPct:           total > 0 ? (correct / total) * 100 : 0,
+        avgResponseTimeMs:     averageTime,
+        mathQuestionsCount:    lesson.mathQuestionsCount,
+        correctAnswersCount:   lesson.correctAnswersCount,
+        logs,
+      });
+    } catch (err) {
+      console.error("❌ /lessons/:lessonId/analytics error:", err);
+      next(err);
+    }
+  }
 
   /**
    * TTS endpoint: convert text to speech and stream MP3
@@ -573,57 +838,58 @@ async getSession(
       next(err);
     }
   }
+
   public checkOpenLesson = async (req: Request, res: Response) => {
     console.log("checkOpenLesson");
-    
+
     const { userId, subject } = req.body;
     console.log("userId", userId);
     console.log("subject", subject);
 
-
     if (!userId || !subject) {
       res.status(400).json({ message: "Missing userId or subject" });
-      return ;
+      return;
     }
 
     try {
       const existingLesson = await lessonsModel.findOne({
         userId: new mongoose.Types.ObjectId(userId),
-        subject:subject,
-         progress: { $in: ["IN_PROGRESS", "NOT_STARTED"] },
+        subject: subject,
+        progress: { $in: ["IN_PROGRESS", "NOT_STARTED"] },
       });
-      
-      if (existingLesson){
+
+      if (existingLesson) {
         console.log("if-existingLesson", existingLesson);
-        res.json({ isOpen: true});
-        return 
+        res.json({ isOpen: true });
+        return;
       } else {
         console.log("else-existingLesson", existingLesson);
         res.json({ isOpen: false });
-        return ;
+        return;
       }
     } catch (error) {
       console.error("Error checking open lesson:", error);
       res.status(500).json({ message: "Server error" });
-      return ;
+      return;
     }
   };
+
   public async getLessonMessages(req: Request, res: Response): Promise<void> {
     const { lessonId } = req.params;
-  
-    // בדיקת תקינות ObjectId
+
+    // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(lessonId)) {
       res.status(400).json({ error: "Invalid lessonId" });
       return;
     }
-  
+
     try {
       const lesson = await lessonsModel.findById(lessonId).select("messages");
       if (!lesson) {
         res.status(404).json({ error: "Lesson not found" });
         return;
       }
-  
+
       res.status(200).json({ messages: lesson.messages });
     } catch (err) {
       console.error("Fetch messages error:", err);
@@ -631,6 +897,5 @@ async getSession(
     }
   }
 }
-
 
 export default new LessonsController();

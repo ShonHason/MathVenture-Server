@@ -21,7 +21,7 @@ dotenv.config({ path: envPath,override: true });
 // ✅ Log critical variables
 console.log(
   "✅ Loaded OPENAI_API_KEY:",
-  process.env.OPENAI_API_KEY?.slice(0, 12)
+  process.env.GEMINI_API_KEY?.slice(0, 12)
 );
 console.log("✅ Loaded DATABASE_URL:", process.env.DATABASE_URL?.slice(0, 40));
 console.log("🛠 Current working directory:", process.cwd());
