@@ -164,6 +164,7 @@ End of lesson:
 
 Remain kind, playful, and encouraging—their math adventure buddy!
 `.trim();
+
   }
 
   public reportLesson = async (req: Request, res: Response): Promise<void> => {

@@ -146,7 +146,7 @@ const generateTokens = (_id : string) : { accessToken : string , refreshToken : 
 const login = async (req: Request, res: Response) => {
   const email = req.body.email;
   const password = req.body.password;
-  const gender = req.body.gender;
+
   if (!email || !password || email.trim().length === 0 || password.trim().length === 0) {
     res.status(400).send('Email and password are required');
     return;
@@ -300,7 +300,7 @@ const endOfRegistration = async (req: Request, res: Response) => {
     parent_name,
     parent_phone,
   } = req.body;
-  
+  console.log(dateOfBirth)
   // Validate that we received a userId
   if (!userId) {
     res.status(400).send("User ID is required");
