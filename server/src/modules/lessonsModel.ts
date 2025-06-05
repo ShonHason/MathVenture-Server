@@ -7,57 +7,18 @@ export interface ChatMessage {
   content: string;
 }
 export interface QuestionLog {
-  question: string;
-  questionTime: Date;
-  answer: string;
-  answerTime: Date;
-  isCorrect: boolean;
-  timestamp: Date;
-  responseTimeMs?: number; // time taken to answer the question
-  aiResponse: string; // optional field for AI response
-  questionKey:string
+ mathExpression: string; // the math expression being asked
+  answer: [string] // the answer provided by the user
+  botResponse?: [string]; // the response from the AI
 }
 
 const questionLogSchema = new Schema<QuestionLog>({
-  question: {
-    type: String,
-    required: true,
-  },
-  questionTime: {
-    type: Date,
-    required: true,
-    default: Date.now, // default to current time if not provided
-  },
-  answer: {
-    type: String,
-    required: true,
-  },
-  answerTime: {
-    type: Date,
-    required: true,
-    default: Date.now, // default to current time if not provided
-  },
-  isCorrect: {
-    type: Boolean,
-    required: true,
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now,
-  },
-  responseTimeMs: {
-    type: Number, // time taken to answer the question in milliseconds
-    required: false,
-  },
-  aiResponse: {
-    type: String, // optional field for AI response
-    required: true,
-  },
-  questionKey: {
-    type: String, // unique identifier for the question
-    required: true,
-  }
+
+  mathExpression: { type: String, required: true },
+  answer: { type: [String], required: true }, // array of answers
+  botResponse: { type: [String], required: false } // array of bot responses
 }, { _id: false }); // no separate _id for each sub‑document
+
 
 
 
