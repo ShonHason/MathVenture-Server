@@ -34,6 +34,7 @@ export async function askQuestion(
   _unusedContext: string,
   lessonId?: string
 ): Promise<string> {
+  console.log("askQuestion - Gemini API");
   if (!lessonId) throw new Error("Lesson ID is required");
 
   // Fetch lesson
@@ -41,25 +42,6 @@ export async function askQuestion(
   if (!lesson) throw new Error("Lesson not found");
   if (lesson.progress === progressType.NOT_STARTED) {
     lesson.progress = progressType.IN_PROGRESS;
-  }
-
-  // Detect math-only queries
-  const isMath = /^[0-9+\-*/().\s=]+$/.test(question.trim());
-  if (isMath) {
-    // Compute and return JSON payload
-    const expression = question.replace(/[^0-9+\-*/().]/g, "");
-    const result = calculateExpression(expression);
-    lesson.mathQuestionsCount = (lesson.mathQuestionsCount || 0) + 1;
-    if (lesson.mathQuestionsCount >= 15) {
-      lesson.progress = progressType.DONE;
-      await lesson.save();
-      return JSON.stringify({
-        done: true,
-        message: "You have completed the math questions. Please proceed to the next lesson.",
-      });
-    }
-    await lesson.save();
-    return JSON.stringify({ type: "math", question, expression, result });
   }
 
   // Build chat history as Content[]
@@ -88,7 +70,8 @@ export async function askQuestion(
   // Send the user question
   const response = await chat.sendMessage({ message: question });
   const answer = response.text?.trim() ?? "";
-
+console.log("Gemini response:", answer);
+  
   // Save question & answer to lesson
   lesson.messages.push({ role: "user", content: question });
   lesson.messages.push({ role: "assistant", content: answer });

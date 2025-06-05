@@ -166,9 +166,10 @@ You are a friendly Hebrew tutor. For non-math chat, reply in plain Hebrew, no JS
     // chat
     answer = assistantContent;
   }
-
+console.log("OpenAI :", answer.text);
   // 5) Save & return
   lesson.messages.push({ role: "assistant", content: answer });
   await lesson.save();
+
   return answer;
 }
