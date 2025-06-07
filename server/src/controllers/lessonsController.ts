@@ -6,12 +6,56 @@ import { askQuestion } from "./geminiApi";
 import { textToSpeechConvert } from "./APIController/ttsController";
 import sgMail from "@sendgrid/mail";
 import UserModel from "../modules/userModel";
-
+import { GoogleGenAI, createUserContent } from "@google/genai";
+import { sendAndLogEmail } from "./emailController";
+import jwt, { JwtPayload } from "jsonwebtoken";
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
 
 // In-memory map to hold the latest expression for each lessonId
 // Key: lessonId, Value: arithmetic expression string (e.g. "2+3")
 const pendingQuestionKeys: Record<string, string> = {};
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
+
+async function lessonSummaryGemini(
+  chatMessages: { role: string; content: string }[],
+  questionLogs: { mathExpression: string; answer: string[]; botResponse: string[] }[]
+): Promise<string | null> {
+  try {
+    const payload = {
+      chat: JSON.stringify(chatMessages, null, 2),
+      questions: JSON.stringify(questionLogs, null, 2),
+    };
+    const userPrompt =
+      `Analyze the lesson data and return one JSON object with keys:\n` +
+      `1. "questions": array of { question, yourAnswer, tryNumber, feedback }\n` +
+      `2. "successRate": number between 0 and 100\n` +
+      `3. "improvementTips": array of 1–3 suggestions\n` +
+      `4. "strengths": array of 1–3 observations\n` +
+      `5. "practiceHomework": array of 10 new questions ordered easiest to hardest\n` +
+      `6. "recommendations": { toKeep: [...], toWorkOn: [...] }\n` +
+      `Chat history:\n${payload.chat}\nQuestions:\n${payload.questions}`;
+
+    const chat = ai.chats.create({
+      model: "gemini-2.0-flash",
+      config: {
+        temperature: 0.3,
+        maxOutputTokens: 800,
+        systemInstruction: createUserContent(
+          "You are an educational analyst. Provide a structured JSON report."
+        ),
+      },
+      history: [],
+    });
+
+    const response = await chat.sendMessage({ message: userPrompt });
+    return response.text?.trim() || null;
+  } catch (err) {
+    console.error("Error in lessonSummaryGemini:", err);
+    return null;
+  }
+}
+
 
 class LessonsController extends BaseController<ILesson> {
   private static questionCounter: number = 0;
@@ -21,17 +65,6 @@ class LessonsController extends BaseController<ILesson> {
     super(lessonsModel);
   }
 
-  public static getQuestionCounter(): number {
-    return this.questionCounter;
-  }
-
-  public static incrementQuestionCounter(): void {
-    if (this.questionCounter < this.MAX_QUESTIONS) {
-      this.questionCounter++;
-    } else {
-      throw new Error("Maximum question limit reached");
-    }
-  }
 
   private sanitizeSubject(raw: string): string {
     let subject = raw.trim();
@@ -83,7 +116,7 @@ class LessonsController extends BaseController<ILesson> {
   If the message IS one of the 15 Part 2 questions, return exactly:
   {
     "text": "<Hebrew question with full diacritics>",
-    "mathexpression": "<bare arithmetic expression such as \"2+3\" or \"5-2\">",
+    "mathexpression": "<bare arithmetic expression such as "2+3" or "5-2">",
     "counter": <number between 1 and 15>
   }
   
@@ -653,7 +686,80 @@ public async addBotResponse(req: Request, res: Response): Promise<void> {
         return;
       }
     }
-        
-    
-}
+
+    public async analyzeLesson(req: Request, res: Response): Promise<void> {
+      const {
+        lessonId,
+        parentEmail,
+        subject: emailSubject,
+      } = req.body as {
+        lessonId?: string;
+        parentEmail?: string;
+        subject?: string;
+      };
+  
+      if (
+        !lessonId ||
+        !parentEmail ||
+        !emailSubject ||
+        !mongoose.Types.ObjectId.isValid(lessonId)
+      ) {
+        res.status(400).json({
+          error:
+            "Missing or invalid fields: lessonId (ObjectId), parentEmail, subject must be in body",
+        });
+        return;
+      }
+  
+      try {
+        const lesson = await lessonsModel.findById(lessonId);
+        if (!lesson) {
+          res.status(404).json({ error: "Lesson not found" });
+          return;
+        }
+  
+        const chatMessages = lesson.messages.map(m => ({ role: m.role, content: m.content }));
+        const questionLogs = lesson.questionLogs.map(log => ({
+          mathExpression: log.mathExpression,
+          answer: log.answer,
+          botResponse: log.botResponse ?? [],
+        }));
+  
+        const reportJson = await lessonSummaryGemini(chatMessages, questionLogs);
+        if (!reportJson) {
+          res.status(500).json({ error: "Failed to analyze lesson" });
+          return;
+        }
+  
+        // extract userId from token
+        const authHeader = req.headers.authorization;
+        const token = authHeader && authHeader.split(" ")[1];
+        const decoded = token && jwt.decode(token);
+        const userId = decoded && typeof decoded !== "string" ? (decoded as JwtPayload)._id : null;
+        if (!userId) {
+           res.status(401).json({ error: "Invalid or missing token" });
+           return;
+        }
+        // send and log email
+        const { success, recordId } = await sendAndLogEmail(
+          userId,
+          parentEmail,
+          emailSubject,
+          reportJson
+        );
+  
+         res
+          .status(success ? 200 : 500)
+          .json({ analysis: JSON.parse(reportJson), email: { success, recordId } });
+          return;
+      } catch (err) {
+        console.error("analyzeLesson error:", err);
+        res.status(500).json({ error: "Server error analyzing lesson" });
+        return;
+      }
+    }
+  
+  }  
+ 
+
 export default new LessonsController();
