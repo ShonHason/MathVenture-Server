@@ -85,13 +85,15 @@ const sendEmailAndSaveToDB = async (req: Request, res: Response): Promise<void> 
     }
 
     res.status(500).send({ error: 'Failed to send email. Please try again later.' });
+    return;
   }
 };
 
 const findEmailsByFilter = async (req: Request, res: Response): Promise<void> => {
-  const emailId = req.params._id;
+  console.log("findEmailsByFilter called"); 
+  const userId = req.query.userID;
 
-  if (!emailId) {
+  if (!userId) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
@@ -109,7 +111,7 @@ const findEmailsByFilter = async (req: Request, res: Response): Promise<void> =>
     const userId = (decodedPayload as JwtPayload)._id;
 
     try {
-      const emails = await EmailModel.find({ userID: userId });
+      const emails = await EmailModel.find({ userID : userId });
       res.status(200).send(emails);
     } catch (error) {
       console.error('Error finding emails:', error);
@@ -117,7 +119,7 @@ const findEmailsByFilter = async (req: Request, res: Response): Promise<void> =>
     }
   } else {
     try {
-      const email = await EmailModel.findOne({ _id: emailId });
+      const email = await EmailModel.find({ userID : userId });
       if (!email) {
         res.status(404).send({ error: 'Email not found' });
         return;
@@ -129,8 +131,42 @@ const findEmailsByFilter = async (req: Request, res: Response): Promise<void> =>
     }
   }
 };
+export interface EmailResult {
+  success: boolean;
+  recordId: string;
+}
+
+export async function sendAndLogEmail(
+  userId: string,
+  to: string,
+  subject: string,
+  text: string
+): Promise<EmailResult> {
+  // create a pending record
+  const rec = await EmailModel.create({
+    userID: userId,
+    to,
+    subject,
+    message: text,
+    status: "pending",
+  });
+
+  try {
+    // send through SendGrid
+    await sgMail.send({ to, from: "MathVentureBot@gmail.com", subject, text });
+    rec.status = "sent";
+    await rec.save();
+    return { success: true, recordId: rec.id};
+  } catch (err) {
+    console.error("Email send failed:", err);
+    rec.status = "failed";
+    await rec.save();
+    return { success: false, recordId: rec.id };
+  }
+}
 
 export default {
   sendEmailAndSaveToDB,
   findEmailsByFilter,
+  sendAndLogEmail
 };

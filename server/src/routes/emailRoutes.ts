@@ -102,7 +102,7 @@ router.post(
 );
 
 router.get(
-  "/getUserMail",
+  "/getAllEmails",
   userTokensMiddleware,
   emailController.findEmailsByFilter
 );

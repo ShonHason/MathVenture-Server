@@ -258,4 +258,5 @@ router.put("/addQustionLog" , lessonsController.addQuestionLog.bind(lessonsContr
 router.put("/addBotResponse", lessonsController.addBotResponse.bind(lessonsController));
 router.put("/addAnswer", lessonsController.addAnswer.bind(lessonsController));
 router.get("/isOver/:lessonId", lessonsController.isOver.bind(lessonsController));
+router.post("/analyze-lesson",  lessonsController.analyzeLesson.bind(lessonsController));
 export default router;
