@@ -62,7 +62,7 @@ router.post(
         input: { ssml },
         voice: {
           languageCode: 'he-IL',
-          name: 'he-IL-Wavenet-D',
+          name: 'he-IL-Wavenet-B',
           ssmlGender: textToSpeech.protos.google.cloud.texttospeech.v1.SsmlVoiceGender.FEMALE,
         },
         audioConfig: {
@@ -92,7 +92,7 @@ export async function textToSpeechConvert(text: string): Promise<Buffer> {
     input:    { ssml },
     voice:    {
       languageCode: 'he-IL',
-      name:         'he-IL-Wavenet-C',
+      name:         'he-IL-Wavenet-B',
       ssmlGender:   textToSpeech.protos.google.cloud.texttospeech.v1.SsmlVoiceGender.FEMALE,
     },
     audioConfig: {

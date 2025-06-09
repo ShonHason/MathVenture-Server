@@ -253,10 +253,5 @@ router.get(
 );
 router.post("/check-open-lesson", lessonsController.checkOpenLesson);
 router.get("/:lessonId/messages", lessonsController.getLessonMessages);
-//router.get("/:lessonId/analytics", lessonsController.getAnalystics.bind(lessonsController));
-router.put("/addQustionLog" , lessonsController.addQuestionLog.bind(lessonsController));
-router.put("/addBotResponse", lessonsController.addBotResponse.bind(lessonsController));
-router.put("/addAnswer", lessonsController.addAnswer.bind(lessonsController));
-router.get("/isOver/:lessonId", lessonsController.isOver.bind(lessonsController));
 router.post("/analyze-lesson",  lessonsController.analyzeLesson.bind(lessonsController));
 export default router;
