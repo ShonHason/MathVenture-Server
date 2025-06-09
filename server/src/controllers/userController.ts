@@ -8,7 +8,7 @@ const updateProfile = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { userId, username, email, parent_phone, grade, imageUrl } = req.body;
+    const { userId, username, email, parent_phone, grade, imageUrl, parent_name, parent_email  } = req.body;
 
     if (!userId) {
       res.status(400).send("User ID is required");
@@ -21,6 +21,8 @@ const updateProfile = async (
       parent_phone: string;
       grade: string;
       imageUrl: string;
+      parent_name?: string;
+      parent_email?: string;
     }> = {};
 
     if (username !== undefined)   updateFields.username     = username;
@@ -28,6 +30,8 @@ const updateProfile = async (
     if (parent_phone !== undefined) updateFields.parent_phone = parent_phone;
     if (grade !== undefined)      updateFields.grade        = grade;
     if (imageUrl !== undefined)   updateFields.imageUrl     = imageUrl;
+    if (parent_name !== undefined) updateFields.parent_name = parent_name;
+    if (parent_email !== undefined) updateFields.parent_email = parent_email;
 
     const updatedUser = await userModel.findByIdAndUpdate(
       userId,

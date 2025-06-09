@@ -15,6 +15,7 @@
     "@google-cloud/text-to-speech": "^5.8.0",
     "@google-cloud/vision": "^5.2.0",
     "@google/genai": "^1.2.0",
+
     "@sendgrid/mail": "^8.1.4",
     "@types/react-router-dom": "^5.3.3",
     "antd": "^5.23.2",
