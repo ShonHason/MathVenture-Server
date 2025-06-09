@@ -1,4 +1,4 @@
-import lessonsModel, { ILesson, QuestionLog } from "../modules/lessonsModel";
+import lessonsModel, { ILesson,  } from "../modules/lessonsModel";
 import { Request, Response, NextFunction } from "express";
 import { BaseController } from "./baseController";
 import mongoose from "mongoose";
@@ -19,12 +19,10 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 
 async function lessonSummaryGemini(
   chatMessages: { role: string; content: string }[],
-  questionLogs: { mathExpression: string; answer: string[]; botResponse: string[] }[]
 ): Promise<string | null> {
   try {
     const payload = {
       chat: JSON.stringify(chatMessages, null, 2),
-      questions: JSON.stringify(questionLogs, null, 2),
     };
     const userPrompt =
       `Analyze the lesson data and return one JSON object with keys:\n` +
@@ -34,7 +32,7 @@ async function lessonSummaryGemini(
       `4. "strengths": array of 1–3 observations\n` +
       `5. "practiceHomework": array of 10 new questions ordered easiest to hardest\n` +
       `6. "recommendations": { toKeep: [...], toWorkOn: [...] }\n` +
-      `Chat history:\n${payload.chat}\nQuestions:\n${payload.questions}`;
+      `Chat history:\n${payload.chat}`;
 
     const chat = ai.chats.create({
       model: "gemini-2.0-flash",
@@ -96,12 +94,11 @@ class LessonsController extends BaseController<ILesson> {
   ): string {
     const champion = gender === "female" ? "אלופה" : "אלוף";
     const studentHebrew = gender === "female" ? "התלמידה" : "התלמיד";
-    const readyWord = gender === "female" ? "מוכנה" : "מוכן";
     const formattedSamples = sampleQuestions.map((q) => `- ${q}`).join("\n");
   
     return `
   You are a playful, creative, and warm-hearted math tutor for ${studentHebrew} ${username}, grade ${grade}, rank: ${rank} (“${champion}”).
-  Always address ${studentHebrew} ${username} in Hebrew with full diacritics.
+  Always address ${studentHebrew} ${username} in Hebrew with full diacritics in both parts.
   
   ⚠️ NO MARKDOWN FENCES—output raw JSON only. Do not wrap the object in triple backticks or any other code block.  
   Do not include any extra text, punctuation, or emojis around the JSON.
@@ -109,23 +106,20 @@ class LessonsController extends BaseController<ILesson> {
   If the message is NOT one of the 15 Part 2 questions, return exactly:
   {
     "text": "<Hebrew text with full diacritics or feedback>",
-    "mathexpression": undefined,
     "counter": undefined
   }
   
   If the message IS one of the 15 Part 2 questions, return exactly:
   {
     "text": "<Hebrew question with full diacritics>",
-    "mathexpression": "<bare arithmetic expression such as "2+3" or "5-2">",
     "counter": <number between 1 and 15>
   }
   
   Lesson structure:
   
   1. Part 1: Explain basic concepts slowly. (These messages do NOT count toward the 15 Part 2 questions.)  
-     When you ask a concept-check question,you could prefix it with:  
+     When you ask a concept-check question,you could prefix it with but dont say it more than once:  
      "אין לך מה לדאוג, זה לא חלק מהשאלות של החלק השני".
-     but you can also not use this prefix if you prefer, use it only if it feels natural.
   
   2. After Part 1, output raw JSON with only the "text" field:
      {"text": "עכשיו נעבור לחלק השני של השיעור"}
@@ -135,7 +129,6 @@ class LessonsController extends BaseController<ILesson> {
      For example:
      {
        "text": "אם יש לך 2 תפוחים ועוד 3 תפוחים, כמה תפוחים סך הכל?",
-       "mathexpression": "2+3",
        "counter": 1
      }
    
@@ -151,49 +144,66 @@ class LessonsController extends BaseController<ILesson> {
   
   Lesson rules:
   - Part 2 must contain exactly 15 unique math questions.
-  - Number each Part 2 question: "השאלה מספר X מתוך 15:" before its JSON block.
+  - Number each Part 2 question: "השאלה מספר X מתוך 15:" before its JSON block. without writing the number as hebrew word. 8-שמונה לדוגמא
+  - for example "שאלה מספר 1 מתוך 15:"/שאלה 2 מתוך 15:
   - Each arithmetic expression must be new (do not reuse "2+3").
   - Each numeric result must differ from all previous questions.
-  
+
   Answer checking (after the student replies):
-  - If ${studentHebrew} answers correctly to a Part 2 question, output exactly:
+  - If the student answers correctly to a Part 2 question, output exactly corrcetResponses:(pick one):
+ - "נכון מאוד! תשובתך נכונה. התשובה היא <correct number>. ${gender === 'female' ? 'בואי' : 'בוא'} נעבור לשאלה הבאה.",
+  -"מעולה! הצלחת לפתור את השאלה. התשובה היא <correct number>. ${gender === 'female' ? 'בואי' : 'בוא'} נמשיך לשאלה הבאה.",
+  -"כל הכבוד! תשובתך מדויקת. התשובה היא <correct number>. ${gender === 'female' ? 'בואי' : 'בוא'} לעוד שאלה.",
+  -"נהדר! תשובתך נכונה. התשובה היא <correct number>. ${gender === 'female' ? 'בואי' : 'בוא'} נמשיך הלאה.",
+  -"איזה יופי! צדקת. התשובה היא <correct number>. ${gender === 'female' ? 'מוכנה' : 'מוכן'} לעוד אתגר."
+  -when im in question 14 , you could say:
+  "כל הכבוד ! תשובתך נכונה. התשובה היא <correct number , בוא נמשיך לשאלה האחרונה של השיעור."
+  when im in question 15, you could say:
+  "מדהים, באמת צדקת, התשובה היא <correct number>.זאת הייתה השאלה האחרונה לשיעור, ממש מקווה שנהנתה!" 
     {
-      "text": "…נכון מאוד! תשובתך נכונה. התשובה היא <correct number>. ${readyWord} לשאלה הבאה?",
-      "mathexpression": "<same expression as asked>",
+      "text": choose one from above,
       "counter": <same counter>
     }
+
   - If ${studentHebrew} answers incorrectly:
-    1️⃣ First attempt wrong:  
+When the student is wrong the first time, pick one of:
+    - לא נכון, תנסה לחשוב על זה שוב, הפעם קצת יותר לאט.
+    - לא נכון, נסה לחשוב על זה שוב בצורה אחרת.
+    - לא נכון, אולי תנסה לגשת לזה מזווית אחרת?
+    - לא נכון, קח רגע לחשוב שוב, אולי תמצא את התשובה.
+    - לא נכון, תנסה לחשוב על זה שוב, הפעם בקצב שלך.
+    - לא נכון, בוא ננסה לחשוב על זה יחד.
+than try to understand the student's thought process.
+    
        {
-         "text": "לא נכון, תנסה לחשוב על זה שוב, הפעם קצת יותר לאט.",
-         "mathexpression": "<same expression>",
+         "text": choose one from above,than replay the question again without the number of question
          "counter": <same counter>
        }
        Then repeat the exact same JSON question.
     2️⃣ Second wrong attempt:  
        {
-         "text": "לא נכון, בוא ננסה לחשוב ביחד. <hint here>",
-         "mathexpression": "<same expression>",
+         "text": "לא נכון, בוא ננסה לחשוב ביחד. <hint here>", and try to understand the student's thought process deeply.
          "counter": <same counter>
        }
        Then repeat the same JSON question.
     3️⃣ Third wrong attempt:  
        {
          "text": "<playful step-by-step explanation in Hebrew> התשובה היא <correct number>.",
-         "mathexpression": "<same expression>",
          "counter": <same counter>
        }
   
+       
   Only reveal the numeric answer early if ${studentHebrew} explicitly asks “מה התשובה?”
-  
-  
-  then proceed to the next Part 2 question.
-  
-  End of lesson:
-  If ${studentHebrew} says "סוף שיעור", output exactly:
+  you can only say השיעור נגמר once , and thats happend after the user answer all the question.
+  after you finish all 15 Part 2 questions, output exactly: 
   {
-    "summary": "<סיכום בעברית: נושאים שנלמדו, חוזקות התלמיד/ה, וטיפ חביב לשיפור>"
+  text: "השיעור נגמר,${username} היה לי ממש כיף ללמוד איתך היום!
+  אני מקווה שלמדת הרבה על ${subject}!
+  אני ממליץ לך לחזור על השאלות שענית לא נכון, ולנסות לפתור אותן שוב.
+  אם יש לך שאלות נוספות, אני כאן בשבילך.
+  נתראה בשיעור הבא!" 
   }
+  
   
   Remain kind, playful, and encouraging—their math adventure buddy!
     `.trim();
@@ -499,193 +509,7 @@ class LessonsController extends BaseController<ILesson> {
       res.status(500).json({ error: "Server error fetching messages" });
     }
   }
-  public async addQuestionLog(req: Request, res: Response): Promise<void> {
-    const { lessonId, mathExp, text } = req.body as {
-      lessonId?: string;
-      mathExp?: string;
-      text?: string;
-    };
-    console.log("addQuestionLog called");
-
-    console.log("lessonId:", lessonId , "mathExp:", mathExp, "text:", text);
-    
   
-    // 1) Validate presence of required fields
-    if (!lessonId || !mathExp || !text) {
-      res.status(400).json({ error: "Missing one of: lessonId, mathExp, or text" });
-      return;
-    }
-    // 2) Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(lessonId)) {
-      res.status(400).json({ error: "Invalid lessonId" });
-      return;
-    }
-    try {
-      // 3) Find the lesson
-      const lesson = await lessonsModel.findById(lessonId);
-      if (!lesson) {
-        res.status(404).json({ error: "Lesson not found" });
-        return;
-      }
-  
-      // 3.a) Check if this expression already exists
-      const exists = lesson.questionLogs.some(log => log.mathExpression === mathExp);
-      if (exists) {
-        // Expression already logged; do not add again
-        res.status(200).json({ questionLogs: lesson.questionLogs });
-        return;
-      }
-  
-      // 4) Build a new QuestionLog entry with 'text' as the answer
-      const newLog: QuestionLog = {
-        mathExpression: mathExp,
-        answer: [text],    // push 'text' into answer array
-      };
-      // 5) Push into questionLogs
-      lesson.questionLogs.push(newLog);
-  
-      // 6) Save the updated lesson
-      await lesson.save();
-  
-      // 7) Return the updated questionLogs
-      res.status(200).json({ questionLogs: lesson.questionLogs });
-    } catch (err) {
-      console.error("Add question log error:", err);
-      res.status(500).json({ error: "Server error adding question log" });
-    }
-  }
-  
-public async addBotResponse(req: Request, res: Response): Promise<void> {
-  console.log("addBotResponse called");
-  const { lessonId, mathExp, botResponse } = req.body as {
-    lessonId?: string;
-    mathExp?: string;
-    botResponse?: string;
-  };
-
-  if (!lessonId || !mathExp || !botResponse) {
-    res.status(400).json({ error: "Missing one of: lessonId, mathExp, or botResponse" });
-    return;
-  }
-
-  if (!mongoose.Types.ObjectId.isValid(lessonId)) {
-    res.status(400).json({ error: "Invalid lessonId" });
-    return;
-  }
-  try {
-    const lesson = await lessonsModel.findById(lessonId);
-    if (!lesson) {
-      res.status(404).json({ error: "Lesson not found" });
-      return;
-    }
-    // Find the last question log
-    const lastLog = lesson.questionLogs[lesson.questionLogs.length - 1];
-    if (!lastLog) {
-      res.status(404).json({ error: "No question logs found" });
-      return;
-    }
-    // Add the bot response to the last question log
-    lastLog.botResponse?.push(botResponse); // Push the new answer into the array
-    console.log("mathexp: " , mathExp);
-    // Save the updated lesson
-    await lesson.save();
-    // Return the updated question logs
-    res.status(200).json({lesson});
-
-}catch (err) {
-    console.error("Add bot response error:", err);
-    res.status(500).json({ error: "Server error adding bot response" });
-    return;
-    }
-  }
-
-  public async addAnswer(req: Request, res: Response): Promise<void> {
-    const { lessonId, mathExp, text } = req.body as {
-      lessonId?: string;
-      mathExp?: string;
-      text?: string;
-    };
-  
-    if (!lessonId || !mathExp || !text) {
-      res.status(400).json({ error: "Missing one of: lessonId, mathExp, or botResponse" });
-      return;
-    }
-  
-    if (!mongoose.Types.ObjectId.isValid(lessonId)) {
-      res.status(400).json({ error: "Invalid lessonId" });
-      return;
-    }
-    try {
-      const lesson = await lessonsModel.findById(lessonId);
-      if (!lesson) {
-        res.status(404).json({ error: "Lesson not found" });
-        return;
-      }
-      // Find the last question log
-      const lastLog = lesson.questionLogs[lesson.questionLogs.length - 1];
-      if (!lastLog) {
-        res.status(404).json({ error: "No question logs found" });
-        return;
-      }
-      // Add the bot response to the last question log
-      lastLog.answer?.push(text); // Push the new answer into the array
-      // Save the updated lesson
-      await lesson.save();
-      // Return the updated question logs
-      res.status(200).json({lesson});
-  
-  }catch (err) {
-      console.error("Add bot response error:", err);
-      res.status(500).json({ error: "Server error adding bot response" });
-      return;
-      }
-    }
-    public async isOver(req: Request, res: Response): Promise<void> {
-      const { lessonId } = req.params;
-      if (!lessonId || !mongoose.Types.ObjectId.isValid(lessonId)) {
-        res.status(400).json({ error: "Invalid lessonId" });
-        return;
-      }
-    
-      try {
-        const lesson = await lessonsModel.findById(lessonId);
-        if (!lesson) {
-          res.status(404).json({ error: "Lesson not found" });
-          return;
-        }
-    
-        if (lesson.questionLogs.length < 15) {
-          res.status(200).json({ isOver: false , size: lesson.questionLogs.length});
-          return;
-        }
-    
-        for (const log of lesson.questionLogs) {
-          if (!log.answer || log.answer[0] === undefined) {
-            res.status(200).json({ isOver: false , size: lesson.questionLogs.length });
-            return;
-          }
-    
-          if (!log.botResponse || log.botResponse[0] === undefined) {
-            res.status(200).json({ isOver: false , size: lesson.questionLogs.length });
-            return;
-          }
-    
-          const hasValidFlag = log.botResponse.some((resp) =>
-            resp.includes("נכון") || resp.includes("לא נכון")
-          );
-          if (!hasValidFlag) {
-            res.status(200).json({ isOver: false , size: lesson.questionLogs.length });
-            return;
-          }
-        }
-    
-        res.status(200).json({ isOver: true ,size: lesson.questionLogs.length });
-      } catch (err) {
-        console.error("isOver error:", err);
-        res.status(500).json({ error: "Server error checking isOver" });
-        return;
-      }
-    }
 
     public async analyzeLesson(req: Request, res: Response): Promise<void> {
       const {
@@ -719,13 +543,9 @@ public async addBotResponse(req: Request, res: Response): Promise<void> {
         }
   
         const chatMessages = lesson.messages.map(m => ({ role: m.role, content: m.content }));
-        const questionLogs = lesson.questionLogs.map(log => ({
-          mathExpression: log.mathExpression,
-          answer: log.answer,
-          botResponse: log.botResponse ?? [],
-        }));
+    
   
-        const reportJson = await lessonSummaryGemini(chatMessages, questionLogs);
+        const reportJson = await lessonSummaryGemini(chatMessages,);
         if (!reportJson) {
           res.status(500).json({ error: "Failed to analyze lesson" });
           return;

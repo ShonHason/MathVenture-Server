@@ -6,18 +6,6 @@ export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
-export interface QuestionLog {
- mathExpression: string; // the math expression being asked
-  answer: [string] // the answer provided by the user
-  botResponse?: [string]; // the response from the AI
-}
-
-const questionLogSchema = new Schema<QuestionLog>({
-
-  mathExpression: { type: String, required: true },
-  answer: { type: [String], required: true }, // array of answers
-  botResponse: { type: [String], required: false } // array of bot responses
-}, { _id: false }); // no separate _id for each sub‑document
 
 
 
@@ -31,7 +19,6 @@ export interface ILesson extends Document {
   progress: progressType;
   subject: MathTopics;
   messages: ChatMessage[];      // <-- array of role/content objects
-  questionLogs: QuestionLog[]; // <-- array of question logs
 }
 
 const chatMessageSchema = new Schema<ChatMessage>(
@@ -68,10 +55,7 @@ const lessonsSchema = new Schema<ILesson>(
       default: []
     }
     ,
-    questionLogs: {
-      type: [questionLogSchema],
-      default: []
-    }
+  
   },
   {
     toJSON: {
