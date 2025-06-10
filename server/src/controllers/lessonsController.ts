@@ -8,39 +8,44 @@ import sgMail from "@sendgrid/mail";
 import UserModel from "../modules/userModel";
 import { GoogleGenAI, createUserContent } from "@google/genai";
 import { sendAndLogEmail } from "./emailController";
-import jwt, { JwtPayload } from "jsonwebtoken";
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
-
+import { User } from "../modules/userModel";
 // In-memory map to hold the latest expression for each lessonId
 // Key: lessonId, Value: arithmetic expression string (e.g. "2+3")
 const pendingQuestionKeys: Record<string, string> = {};
+
+
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 
 async function lessonSummaryGemini(
   chatMessages: { role: string; content: string }[],
 ): Promise<string | null> {
+  console.log("lessonSummaryGemini - Gemini API");
   try {
     const payload = {
       chat: JSON.stringify(chatMessages, null, 2),
     };
     const userPrompt =
-      `Analyze the lesson data and return one JSON object with keys:\n` +
-      `1. "questions": array of { question, yourAnswer, tryNumber, feedback }\n` +
-      `2. "successRate": number between 0 and 100\n` +
-      `3. "improvementTips": array of 1–3 suggestions\n` +
-      `4. "strengths": array of 1–3 observations\n` +
-      `5. "practiceHomework": array of 10 new questions ordered easiest to hardest\n` +
-      `6. "recommendations": { toKeep: [...], toWorkOn: [...] }\n` +
-      `Chat history:\n${payload.chat}`;
+      `Return ONLY valid JSON — no markdown, no back-ticks. `+
+      `תנתח בבקשה את בעברית תוכן השיעור ותחזיר אובייקט JSON  עם הסיכום הבא כמובן שהסיכום מיועד להורי התלמיד   : \n` + 
+      `יש לשים לב שביטויים מתמטים נראים כמו שצריך בשאלות כל מספר שלילי לשים בסוגריים למשל לא -1 אלא (-1)\n` +
+      `1. נושא השיעור\n` +
+      `2. תצוגה של כל השאלות שנשאלו במהלך השיעור + תשובה של התלמיד + מספר הנסיונות שלקח לתלמיד להגיע לפתרון  \n` +
+      `3.אחוז הצלחה : מספר השאלות שהשיב עליהם נכון חלקי מספר השאלות הכולל * 100\n , (כל טעות מורידה גם אם בסוף הצליח להגיע לתשובה)` +
+      `4. טיפים לשיפור הביצועים של התלמיד לשיעורים הבאים, כמובן שבהתאם לשיעור הנוכחי.\n` +
+      `5. חוזקות של התלמיד : מה הוא עשה טוב בשיעור הזה.\n` +
+      `6.שיעורי בית : 10 שאלות נוספות בנושא עם דרגת קושי יותר גבוהות כמובן ביטויים מתמטים נכונים `+
+     ` Chat history:\n${payload.chat} שעל בסיסו תבצע את הניתוח ;`
 
+      
     const chat = ai.chats.create({
       model: "gemini-2.0-flash",
       config: {
         temperature: 0.3,
-        maxOutputTokens: 800,
+        maxOutputTokens: 3000,
         systemInstruction: createUserContent(
-          "You are an educational analyst. Provide a structured JSON report."
+          userPrompt,
         ),
       },
       history: [],
@@ -53,6 +58,7 @@ async function lessonSummaryGemini(
     return null;
   }
 }
+
 
 
 class LessonsController extends BaseController<ILesson> {
@@ -512,19 +518,20 @@ than try to understand the student's thought process.
   
 
     public async analyzeLesson(req: Request, res: Response): Promise<void> {
+      console.log("analyzeLesson called");
       const {
         lessonId,
-        parentEmail,
+        user,
         subject: emailSubject,
       } = req.body as {
         lessonId?: string;
-        parentEmail?: string;
+        user?: User;
         subject?: string;
       };
   
-      if (
+        if (
         !lessonId ||
-        !parentEmail ||
+        !user ||
         !emailSubject ||
         !mongoose.Types.ObjectId.isValid(lessonId)
       ) {
@@ -541,33 +548,24 @@ than try to understand the student's thought process.
           res.status(404).json({ error: "Lesson not found" });
           return;
         }
-  
+         ;
         const chatMessages = lesson.messages.map(m => ({ role: m.role, content: m.content }));
     
   
-        const reportJson = await lessonSummaryGemini(chatMessages,);
+        const reportJson = await lessonSummaryGemini(chatMessages);
         if (!reportJson) {
           res.status(500).json({ error: "Failed to analyze lesson" });
           return;
         }
   
         // extract userId from token
-        const authHeader = req.headers.authorization;
-        const token = authHeader && authHeader.split(" ")[1];
-        const decoded = token && jwt.decode(token);
-        const userId = decoded && typeof decoded !== "string" ? (decoded as JwtPayload)._id : null;
-        if (!userId) {
-           res.status(401).json({ error: "Invalid or missing token" });
-           return;
-        }
-        // send and log email
+        
         const { success, recordId } = await sendAndLogEmail(
-          userId,
-          parentEmail,
+          user,
           emailSubject,
           reportJson
         );
-  
+        console.log("Email sent:", { success, recordId });
          res
           .status(success ? 200 : 500)
           .json({ analysis: JSON.parse(reportJson), email: { success, recordId } });

@@ -60,8 +60,8 @@ export async function askQuestion(
   const chat = ai.chats.create({
     model: "gemini-2.0-flash",
     config: {
-      temperature: 0.7,
-      maxOutputTokens: 350,
+      temperature: 0.8,
+      maxOutputTokens: 500,
       systemInstruction: createUserContent(systemPrompt),
     },
     history,
