@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import sgMail from '@sendgrid/mail';
 import EmailModel from '../modules/emailModel';
 import jwt, { JwtPayload } from 'jsonwebtoken';
-
+import { User } from '../modules/userModel';
 // Move SendGrid setup into a function, not at top-level
 function initializeSendGrid() {
   const apiKey = process.env.SENDGRID_API_KEY;
@@ -137,15 +137,16 @@ export interface EmailResult {
 }
 
 export async function sendAndLogEmail(
-  userId: string,
-  to: string,
+  user : User,
   subject: string,
-  text: string
+  text?: string, 
 ): Promise<EmailResult> {
   // create a pending record
+  console.log("Sending email is called");
+  const email = user.parent_email? user.parent_email : user.email;
   const rec = await EmailModel.create({
-    userID: userId,
-    to,
+    userID: user._id,
+    to : email,
     subject,
     message: text,
     status: "pending",
@@ -153,7 +154,7 @@ export async function sendAndLogEmail(
 
   try {
     // send through SendGrid
-    await sgMail.send({ to, from: "MathVentureBot@gmail.com", subject, text });
+    await sgMail.send({ to:email, from: "MathVentureBot@gmail.com", subject, text });
     rec.status = "sent";
     await rec.save();
     return { success: true, recordId: rec.id};
@@ -164,6 +165,8 @@ export async function sendAndLogEmail(
     return { success: false, recordId: rec.id };
   }
 }
+
+
 
 export default {
   sendEmailAndSaveToDB,

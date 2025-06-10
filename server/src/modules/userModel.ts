@@ -16,6 +16,22 @@ export interface IUser extends Document {
   subjectsList?:    string[];  
 }
 
+export interface User {
+  _id: string;
+  username: string;
+  fullname: string;
+  email: string;
+  grade?: string;
+  gender?: string;
+  rank?: string;
+  dateOfBirth?: string;
+  imageUrl?: string;
+  opportunities?: string;
+  twoFactorAuth?: boolean;
+  parent_email?: string;
+  parent_name?: string;
+  parent_phone?: string;
+}
 
 const userSchema = new mongoose.Schema<IUser>(
   {
