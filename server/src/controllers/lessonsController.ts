@@ -1,6 +1,13 @@
-import lessonsModel, { ILesson,  } from "../modules/lessonsModel";
+import lessonsModel, { ILesson } from "../modules/lessonsModel";
 import { Request, Response, NextFunction } from "express";
 import { BaseController } from "./baseController";
+// @ts-ignore: no types
+const UnicodeBidi = require("unicode-bidirectional/dist/unicode.bidirectional");
+const { resolve: bidiResolve, reorder: bidiReorder } = UnicodeBidi;
+
+// @ts-ignore: no types for internal printer
+import PdfPrinter from "pdfmake/src/printer";
+
 import mongoose from "mongoose";
 import { askQuestion } from "./geminiApi";
 import { textToSpeechConvert } from "./APIController/ttsController";
@@ -10,16 +17,40 @@ import { GoogleGenAI, createUserContent } from "@google/genai";
 import { sendAndLogEmail } from "./emailController";
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
 import { User } from "../modules/userModel";
+import path from "path";
+import { rejects } from "assert";
 // In-memory map to hold the latest expression for each lessonId
 // Key: lessonId, Value: arithmetic expression string (e.g. "2+3")
 const pendingQuestionKeys: Record<string, string> = {};
-
-
+const fonts = {
+  HebrewFont: {
+    normal: path.resolve(
+      __dirname,
+      "../fonts/NotoSansHebrew_Condensed-Regular.ttf"
+    ),
+    bold: path.resolve(__dirname, "../fonts/NotoSansHebrew_Condensed-Bold.ttf"), // optional
+    italics: path.resolve(
+      __dirname,
+      "../fonts/NotoSansHebrew_Condensed-Regular.ttf"
+    ),
+  },
+};
+const printer = new PdfPrinter(fonts);
+function toVisual(text: string): string {
+  const cps = Array.from(text).map((ch) => ch.codePointAt(0)!);
+  const levels = bidiResolve(
+    cps,
+    /*paragraphLevel=*/ 1,
+    /*automaticLevel=*/ false
+  );
+  const reordered = bidiReorder(cps, levels);
+  return String.fromCodePoint(...reordered);
+}
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 
 async function lessonSummaryGemini(
-  chatMessages: { role: string; content: string }[],
+  chatMessages: { role: string; content: string }[]
 ): Promise<string | null> {
   console.log("lessonSummaryGemini - Gemini API");
   try {
@@ -27,26 +58,23 @@ async function lessonSummaryGemini(
       chat: JSON.stringify(chatMessages, null, 2),
     };
     const userPrompt =
-      `Return ONLY valid JSON — no markdown, no back-ticks. `+
-      `תנתח בבקשה את בעברית תוכן השיעור ותחזיר אובייקט JSON  עם הסיכום הבא כמובן שהסיכום מיועד להורי התלמיד   : \n` + 
+      `Return ONLY valid JSON — no markdown, no back-ticks. ` +
+      `תנתח בבקשה את בעברית תוכן השיעור ותחזיר אובייקט JSON  עם הסיכום הבא כמובן שהסיכום מיועד להורי התלמיד   : \n` +
       `יש לשים לב שביטויים מתמטים נראים כמו שצריך בשאלות כל מספר שלילי לשים בסוגריים למשל לא -1 אלא (-1)\n` +
       `1. נושא השיעור\n` +
       `2. תצוגה של כל השאלות שנשאלו במהלך השיעור + תשובה של התלמיד + מספר הנסיונות שלקח לתלמיד להגיע לפתרון  \n` +
       `3.אחוז הצלחה : מספר השאלות שהשיב עליהם נכון חלקי מספר השאלות הכולל * 100\n , (כל טעות מורידה גם אם בסוף הצליח להגיע לתשובה)` +
       `4. טיפים לשיפור הביצועים של התלמיד לשיעורים הבאים, כמובן שבהתאם לשיעור הנוכחי.\n` +
       `5. חוזקות של התלמיד : מה הוא עשה טוב בשיעור הזה.\n` +
-      `6.שיעורי בית : 10 שאלות נוספות בנושא עם דרגת קושי יותר גבוהות כמובן ביטויים מתמטים נכונים `+
-     ` Chat history:\n${payload.chat} שעל בסיסו תבצע את הניתוח ;`
+      `6.שיעורי בית : 10 שאלות נוספות בנושא עם דרגת קושי יותר גבוהות כמובן ביטויים מתמטים נכונים ` +
+      ` Chat history:\n${payload.chat} שעל בסיסו תבצע את הניתוח ;`;
 
-      
     const chat = ai.chats.create({
       model: "gemini-2.0-flash",
       config: {
         temperature: 0.3,
         maxOutputTokens: 3000,
-        systemInstruction: createUserContent(
-          userPrompt,
-        ),
+        systemInstruction: createUserContent(userPrompt),
       },
       history: [],
     });
@@ -59,8 +87,6 @@ async function lessonSummaryGemini(
   }
 }
 
-
-
 class LessonsController extends BaseController<ILesson> {
   private static questionCounter: number = 0;
   public static readonly MAX_QUESTIONS = 15;
@@ -68,7 +94,6 @@ class LessonsController extends BaseController<ILesson> {
   constructor() {
     super(lessonsModel);
   }
-
 
   private sanitizeSubject(raw: string): string {
     let subject = raw.trim();
@@ -101,7 +126,7 @@ class LessonsController extends BaseController<ILesson> {
     const champion = gender === "female" ? "אלופה" : "אלוף";
     const studentHebrew = gender === "female" ? "התלמידה" : "התלמיד";
     const formattedSamples = sampleQuestions.map((q) => `- ${q}`).join("\n");
-  
+
     return `
   You are a playful, creative, and warm-hearted math tutor for ${studentHebrew} ${username}, grade ${grade}, rank: ${rank} (“${champion}”).
   Always address ${studentHebrew} ${username} in Hebrew with full diacritics in both parts.
@@ -157,11 +182,11 @@ class LessonsController extends BaseController<ILesson> {
 
   Answer checking (after the student replies):
   - If the student answers correctly to a Part 2 question, output exactly corrcetResponses:(pick one):
- - "נכון מאוד! תשובתך נכונה. התשובה היא <correct number>. ${gender === 'female' ? 'בואי' : 'בוא'} נעבור לשאלה הבאה.",
-  -"מעולה! הצלחת לפתור את השאלה. התשובה היא <correct number>. ${gender === 'female' ? 'בואי' : 'בוא'} נמשיך לשאלה הבאה.",
-  -"כל הכבוד! תשובתך מדויקת. התשובה היא <correct number>. ${gender === 'female' ? 'בואי' : 'בוא'} לעוד שאלה.",
-  -"נהדר! תשובתך נכונה. התשובה היא <correct number>. ${gender === 'female' ? 'בואי' : 'בוא'} נמשיך הלאה.",
-  -"איזה יופי! צדקת. התשובה היא <correct number>. ${gender === 'female' ? 'מוכנה' : 'מוכן'} לעוד אתגר."
+ - "נכון מאוד! תשובתך נכונה. התשובה היא <correct number>. ${gender === "female" ? "בואי" : "בוא"} נעבור לשאלה הבאה.",
+  -"מעולה! הצלחת לפתור את השאלה. התשובה היא <correct number>. ${gender === "female" ? "בואי" : "בוא"} נמשיך לשאלה הבאה.",
+  -"כל הכבוד! תשובתך מדויקת. התשובה היא <correct number>. ${gender === "female" ? "בואי" : "בוא"} לעוד שאלה.",
+  -"נהדר! תשובתך נכונה. התשובה היא <correct number>. ${gender === "female" ? "בואי" : "בוא"} נמשיך הלאה.",
+  -"איזה יופי! צדקת. התשובה היא <correct number>. ${gender === "female" ? "מוכנה" : "מוכן"} לעוד אתגר."
   -when im in question 14 , you could say:
   "כל הכבוד ! תשובתך נכונה. התשובה היא <correct number , בוא נמשיך לשאלה האחרונה של השיעור."
   when im in question 15, you could say:
@@ -214,7 +239,6 @@ than try to understand the student's thought process.
   Remain kind, playful, and encouraging—their math adventure buddy!
     `.trim();
   }
-  
 
   public reportLesson = async (req: Request, res: Response): Promise<void> => {
     const { lessonId } = req.params;
@@ -265,8 +289,14 @@ than try to understand the student's thought process.
   public startLesson = async (req: Request, res: Response): Promise<void> => {
     try {
       const { lessonId } = req.params as { lessonId?: string };
-      const { userId, subject: rawSubject, username, grade, rank, sampleQuestions } =
-        req.body;
+      const {
+        userId,
+        subject: rawSubject,
+        username,
+        grade,
+        rank,
+        sampleQuestions,
+      } = req.body;
 
       if (lessonId) {
         if (!mongoose.Types.ObjectId.isValid(lessonId)) {
@@ -420,18 +450,35 @@ than try to understand the student's thought process.
   async chat(req: Request, res: Response, next: NextFunction): Promise<void> {
     const { lessonId } = req.params;
     const { question: studentQuestion } = req.body as { question?: string };
-  
+
     if (!studentQuestion) {
       res.status(400).json({ error: "Missing 'question' in request body" });
       return;
     }
-  
+
     try {
       // 1) Forward the student’s question to Gemini (or whatever AI)
-      const rawResponse: string = await askQuestion(studentQuestion, "", lessonId);
-  
+      const rawResponse: string = await askQuestion(
+        studentQuestion,
+        "",
+        lessonId
+      );
+      let userFacingText: string;
+      try {
+        const parsed = JSON.parse(rawResponse);
+        if (typeof parsed.text === "string") {
+          userFacingText = parsed.text;
+        } else {
+          // fallback if Gemini gave you something unexpected
+          userFacingText = rawResponse;
+        }
+      } catch {
+        // not valid JSON at all? Just pass it through
+        userFacingText = rawResponse;
+      }
+
       // 2) Return exactly what Gemini sent (as plain text)
-      res.json({ answer: rawResponse });
+      res.json({ answer: userFacingText });
     } catch (err) {
       console.error("Error in chat handler:", err);
       next(err);
@@ -515,69 +562,162 @@ than try to understand the student's thought process.
       res.status(500).json({ error: "Server error fetching messages" });
     }
   }
-  
 
-    public async analyzeLesson(req: Request, res: Response): Promise<void> {
-      console.log("analyzeLesson called");
-      const {
-        lessonId,
-        user,
-        subject: emailSubject,
-      } = req.body as {
-        lessonId?: string;
-        user?: User;
-        subject?: string;
-      };
-  
-        if (
-        !lessonId ||
-        !user ||
-        !emailSubject ||
-        !mongoose.Types.ObjectId.isValid(lessonId)
-      ) {
-        res.status(400).json({
-          error:
-            "Missing or invalid fields: lessonId (ObjectId), parentEmail, subject must be in body",
-        });
-        return;
-      }
-  
-      try {
-        const lesson = await lessonsModel.findById(lessonId);
-        if (!lesson) {
-          res.status(404).json({ error: "Lesson not found" });
-          return;
-        }
-         ;
-        const chatMessages = lesson.messages.map(m => ({ role: m.role, content: m.content }));
-    
-  
-        const reportJson = await lessonSummaryGemini(chatMessages);
-        if (!reportJson) {
-          res.status(500).json({ error: "Failed to analyze lesson" });
-          return;
-        }
-  
-        // extract userId from token
-        
-        const { success, recordId } = await sendAndLogEmail(
-          user,
-          emailSubject,
-          reportJson
-        );
-        console.log("Email sent:", { success, recordId });
-         res
-          .status(success ? 200 : 500)
-          .json({ analysis: JSON.parse(reportJson), email: { success, recordId } });
-          return;
-      } catch (err) {
-        console.error("analyzeLesson error:", err);
-        res.status(500).json({ error: "Server error analyzing lesson" });
-        return;
-      }
+  public async generateLessonPdf(analysis: any): Promise<Buffer> {
+    // Helper function to reverse word order while keeping letters intact
+    // And add extra spacing between words
+    function reverseWordOrder(text: string): string {
+      return text.split(' ').reverse().join('  '); // Double spaces between words
     }
-  
-  }  
- 
+    
+    const dd: any = {
+      content: [
+        {
+          text: reverseWordOrder("דוח שיעור"),
+          style: "header",
+          alignment: "center",
+          margin: [0, 0, 0, 20],
+        },
+        {
+          text: reverseWordOrder(`נושא השיעור: ${analysis["נושא השיעור"]}`),
+          style: "subheader",
+          alignment: "right",
+          margin: [0, 0, 0, 10],
+        },
+        {
+          text: reverseWordOrder(`אחוז הצלחה: ${analysis["אחוז_הצלחה"]}%`),
+          alignment: "right",
+          margin: [0, 0, 0, 10],
+        },
+        {
+          text: reverseWordOrder(`טיפים לשיפור: ${analysis["טיפים_לשיפור"]}`),
+          alignment: "right",
+          margin: [0, 0, 0, 10],
+        },
+        {
+          text: reverseWordOrder(`חוזקות: ${analysis["חוזקות"]}`),
+          alignment: "right",
+          margin: [0, 0, 0, 20],
+        },
+        {
+          text: reverseWordOrder("שיעורי בית:"),
+          style: "subheader",
+          alignment: "right",
+          margin: [0, 0, 0, 10],
+        },
+        {
+          stack: (analysis["שיעורי_בית"] || []).map(
+            (hw: any, index: number) => ({
+              text: reverseWordOrder(`${index + 1}. ${hw["שאלה"]}`),
+              alignment: "right",
+              margin: [0, 0, 0, 5],
+            })
+          ),
+          margin: [0, 0, 0, 20],
+        },
+      ],
+      defaultStyle: {
+        font: "HebrewFont",
+      },
+      styles: {
+        header: { fontSize: 18, bold: true },
+        subheader: { fontSize: 14, bold: true },
+      },
+    };
+
+    const pdfDoc = printer.createPdfKitDocument(dd);
+    const buffers: Buffer[] = [];
+    return new Promise<Buffer>((resolve, reject) => {
+      pdfDoc.on("data", (b: Buffer) => buffers.push(b));
+      pdfDoc.on("end", () => resolve(Buffer.concat(buffers)));
+      pdfDoc.on("error", (e: Error) => reject(e));
+      pdfDoc.end();
+    });
+  }
+
+  public async analyzeLesson(req: Request, res: Response): Promise<void> {
+    console.log("analyzeLesson called");
+    const {
+      lessonId,
+      user,
+      subject: emailSubject,
+    } = req.body as {
+      lessonId?: string;
+      user?: User;
+      subject?: string;
+    };
+
+    if (
+      !lessonId ||
+      !user ||
+      !emailSubject ||
+      !mongoose.Types.ObjectId.isValid(lessonId)
+    ) {
+      res.status(400).json({
+        error:
+          "Missing or invalid fields: lessonId (ObjectId), parentEmail, subject must be in body",
+      });
+      return;
+    }
+
+    try {
+      const lesson = await lessonsModel.findById(lessonId);
+      if (!lesson) {
+        res.status(404).json({ error: "Lesson not found" });
+        return;
+      }
+
+      const chatMessages = lesson.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const reportRaw = await lessonSummaryGemini(chatMessages);
+      if (!reportRaw) {
+        res.status(500).json({ error: "Failed to analyze lesson" });
+        return;
+      }
+
+      // ——— CLEAN OUT TRIPLE-BACKTICK FENCES ———
+      let jsonString = reportRaw.trim();
+      // if it’s wrapped in ```json ... ```
+      const fenceMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (fenceMatch) {
+        jsonString = fenceMatch[1];
+      }
+      // now parse
+      let analysisObj: any;
+      try {
+        analysisObj = JSON.parse(jsonString);
+      } catch (parseErr) {
+        console.error("Failed to parse analysis JSON:", parseErr);
+        res.status(500).json({ error: "Analysis returned invalid JSON" });
+        return;
+      }
+
+      // send the lesson report by email
+      const pdfBuffer = await this.generateLessonPdf(analysisObj);
+      const attachment = {
+        content: pdfBuffer.toString("base64"),
+        filename: `lesson_report_${lessonId}.pdf`,
+        type: "application/pdf",
+        disposition: "attachment",
+      };
+
+      const { success, recordId } = await sendAndLogEmail(
+        user,
+        `דוח שיעור על ${analysisObj["נושא השיעור"]}`,
+        "להלן דוח השיעור שלך בקובץ מצורף.",
+        [attachment] // <-- pass the PDF here
+      );
+
+      console.log("Email sent:", { success, recordId });
+      res.status(success ? 200 : 500).json({ success, recordId });
+    } catch (err) {
+      console.error("analyzeLesson error:", err);
+      res.status(500).json({ error: "Server error analyzing lesson" });
+    }
+  }
+}
 
 export default new LessonsController();

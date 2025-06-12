@@ -10,8 +10,13 @@
     "jsx": "react-jsx",
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+     "typeRoots": [
+     "src/types",            // ← your custom declarations
+     "node_modules/@types"   // ← default
+   ]
+
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*","src/types/**/*",],
   "exclude": ["node_modules", "dist"]
 }
