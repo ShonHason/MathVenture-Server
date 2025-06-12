@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { MailDataRequired } from '@sendgrid/mail';
 import sgMail from '@sendgrid/mail';
 import EmailModel from '../modules/emailModel';
 import jwt, { JwtPayload } from 'jsonwebtoken';
@@ -53,6 +54,7 @@ const sendEmailAndSaveToDB = async (req: Request, res: Response): Promise<void> 
       subject,
       text: message,
     };
+    console.log("Sending email with options:", mailOptions);
 
     await sgMail.send(mailOptions);
 
@@ -137,27 +139,40 @@ export interface EmailResult {
 }
 
 export async function sendAndLogEmail(
-  user : User,
+  user: User,
   subject: string,
-  text?: string, 
+  text: string = '',
+  attachments?: {
+    content: string;
+    filename: string;
+    type: string;
+    disposition: string;
+  }[]
 ): Promise<EmailResult> {
-  // create a pending record
   console.log("Sending email is called");
-  const email = user.parent_email? user.parent_email : user.email;
+  const emailAddr = user.parent_email ?? user.email!;
   const rec = await EmailModel.create({
     userID: user._id,
-    to : email,
+    to:      emailAddr,
     subject,
     message: text,
-    status: "pending",
+    status:  "pending",
   });
 
+  // build SendGrid message
+  const msg: MailDataRequired = {
+    to:      emailAddr,
+    from:    "MathVentureBot@gmail.com",
+    subject,
+    text,
+    attachments: attachments // will be undefined if you don’t pass any
+  };
+
   try {
-    // send through SendGrid
-    await sgMail.send({ to:email, from: "MathVentureBot@gmail.com", subject, text });
+    await sgMail.send(msg);
     rec.status = "sent";
     await rec.save();
-    return { success: true, recordId: rec.id};
+    return { success: true, recordId: rec.id };
   } catch (err) {
     console.error("Email send failed:", err);
     rec.status = "failed";
