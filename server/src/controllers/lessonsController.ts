@@ -1,12 +1,8 @@
 import lessonsModel, { ILesson } from "../modules/lessonsModel";
 import { Request, Response, NextFunction } from "express";
 import { BaseController } from "./baseController";
-// @ts-ignore: no types
-const UnicodeBidi = require("unicode-bidirectional/dist/unicode.bidirectional");
-const { resolve: bidiResolve, reorder: bidiReorder } = UnicodeBidi;
 
-// @ts-ignore: no types for internal printer
-import PdfPrinter from "pdfmake/src/printer";
+import { generateLessonPdf } from "../services/pdfGenerator";
 
 import mongoose from "mongoose";
 import { askQuestion } from "./geminiApi";
@@ -18,34 +14,11 @@ import { sendAndLogEmail } from "./emailController";
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
 import { User } from "../modules/userModel";
 import path from "path";
+import fs from "fs";
 import { rejects } from "assert";
 // In-memory map to hold the latest expression for each lessonId
 // Key: lessonId, Value: arithmetic expression string (e.g. "2+3")
 const pendingQuestionKeys: Record<string, string> = {};
-const fonts = {
-  HebrewFont: {
-    normal: path.resolve(
-      __dirname,
-      "../fonts/NotoSansHebrew_Condensed-Regular.ttf"
-    ),
-    bold: path.resolve(__dirname, "../fonts/NotoSansHebrew_Condensed-Bold.ttf"), // optional
-    italics: path.resolve(
-      __dirname,
-      "../fonts/NotoSansHebrew_Condensed-Regular.ttf"
-    ),
-  },
-};
-const printer = new PdfPrinter(fonts);
-function toVisual(text: string): string {
-  const cps = Array.from(text).map((ch) => ch.codePointAt(0)!);
-  const levels = bidiResolve(
-    cps,
-    /*paragraphLevel=*/ 1,
-    /*automaticLevel=*/ false
-  );
-  const reordered = bidiReorder(cps, levels);
-  return String.fromCodePoint(...reordered);
-}
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 
@@ -128,8 +101,10 @@ class LessonsController extends BaseController<ILesson> {
     const formattedSamples = sampleQuestions.map((q) => `- ${q}`).join("\n");
 
     return `
-  You are a playful, creative, and warm-hearted math tutor for ${studentHebrew} ${username}, grade ${grade}, rank: ${rank} (“${champion}”).
+  You are a playful, creative, and warm-hearted math tutor for ${studentHebrew} ${username}, grade ${grade}, rank: ${rank} ("${champion}").
   Always address ${studentHebrew} ${username} in Hebrew with full diacritics in both parts.
+  
+  ‼️‼️ CRITICAL INSTRUCTION: ABSOLUTELY NO EMOJIS IN ANY RESPONSE. DO NOT USE ANY EMOJI CHARACTERS. ‼️‼️
   
   ⚠️ NO MARKDOWN FENCES—output raw JSON only. Do not wrap the object in triple backticks or any other code block.  
   Do not include any extra text, punctuation, or emojis around the JSON.
@@ -142,7 +117,7 @@ class LessonsController extends BaseController<ILesson> {
   
   If the message IS one of the 15 Part 2 questions, return exactly:
   {
-    "text": "<Hebrew question with full diacritics>",
+    "text": "שְׁאֵלָה מִסְפָּר X מִתּוֹךְ 15: <Hebrew question with full diacritics>",
     "counter": <number between 1 and 15>
   }
   
@@ -159,7 +134,7 @@ class LessonsController extends BaseController<ILesson> {
      Each question must be output as raw JSON with "text", "mathexpression", and "counter".  
      For example:
      {
-       "text": "אם יש לך 2 תפוחים ועוד 3 תפוחים, כמה תפוחים סך הכל?",
+       "text": "שְׁאֵלָה מִסְפָּר 1 מִתּוֹךְ 15: אם יש לך 2 תפוחים ועוד 3 תפוחים, כמה תפוחים סך הכל?",
        "counter": 1
      }
    
@@ -175,10 +150,12 @@ class LessonsController extends BaseController<ILesson> {
   
   Lesson rules:
   - Part 2 must contain exactly 15 unique math questions.
-  - Number each Part 2 question: "השאלה מספר X מתוך 15:" before its JSON block. without writing the number as hebrew word. 8-שמונה לדוגמא
-  - for example "שאלה מספר 1 מתוך 15:"/שאלה 2 מתוך 15:
+  - CRITICAL: Include the question number INSIDE the JSON text field as shown in the example: "שְׁאֵלָה מִסְפָּר X מִתּוֹךְ 15: <question>"
+  - NEVER send the question number as a separate message before the question
   - Each arithmetic expression must be new (do not reuse "2+3").
-  - Each numeric result must differ from all previous questions.
+  - CRITICAL: EVERY QUESTION MUST HAVE A DIFFERENT ANSWER THAN ALL PREVIOUS QUESTIONS. You must carefully track all previous answers and ensure each new question has a unique result.
+  - If you notice that a question will result in the same answer as a previous one, immediately change it to create a different result.
+  - Maintain a list of all previous answers to ensure diversity.
 
   Answer checking (after the student replies):
   - If the student answers correctly to a Part 2 question, output exactly corrcetResponses:(pick one):
@@ -224,7 +201,7 @@ than try to understand the student's thought process.
        }
   
        
-  Only reveal the numeric answer early if ${studentHebrew} explicitly asks “מה התשובה?”
+  Only reveal the numeric answer early if ${studentHebrew} explicitly asks "מה התשובה?"
   you can only say השיעור נגמר once , and thats happend after the user answer all the question.
   after you finish all 15 Part 2 questions, output exactly: 
   {
@@ -457,24 +434,41 @@ than try to understand the student's thought process.
     }
 
     try {
-      // 1) Forward the student’s question to Gemini (or whatever AI)
+      // 1) Forward the student's question to Gemini
       const rawResponse: string = await askQuestion(
         studentQuestion,
         "",
         lessonId
       );
       let userFacingText: string;
+
+      // Clean up markdown code blocks and other formatting
+      let cleanedResponse = rawResponse.trim();
+
+      // Remove ```json and ``` markdown code blocks
+      const jsonBlockMatch = cleanedResponse.match(
+        /```(?:json)?\s*([\s\S]*?)\s*```/
+      );
+      if (jsonBlockMatch) {
+        cleanedResponse = jsonBlockMatch[1];
+      }
+
       try {
-        const parsed = JSON.parse(rawResponse);
+        const parsed = JSON.parse(cleanedResponse);
         if (typeof parsed.text === "string") {
-          userFacingText = parsed.text;
+          // Use a more precise emoji regex that preserves numbers
+          userFacingText = parsed.text.replace(
+            // This regex targets only emoji characters, not numbers
+            /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{27BF}]/gu,
+            ""
+          );
         } else {
-          // fallback if Gemini gave you something unexpected
-          userFacingText = rawResponse;
+          // Fallback if Gemini gave you something unexpected
+          userFacingText = cleanedResponse;
         }
-      } catch {
-        // not valid JSON at all? Just pass it through
-        userFacingText = rawResponse;
+      } catch (error) {
+        console.error("JSON parse error:", error);
+        userFacingText = cleanedResponse;
       }
 
       // 2) Return exactly what Gemini sent (as plain text)
@@ -563,78 +557,6 @@ than try to understand the student's thought process.
     }
   }
 
-  public async generateLessonPdf(analysis: any): Promise<Buffer> {
-    // Helper function to reverse word order while keeping letters intact
-    // And add extra spacing between words
-    function reverseWordOrder(text: string): string {
-      return text.split(' ').reverse().join('  '); // Double spaces between words
-    }
-    
-    const dd: any = {
-      content: [
-        {
-          text: reverseWordOrder("דוח שיעור"),
-          style: "header",
-          alignment: "center",
-          margin: [0, 0, 0, 20],
-        },
-        {
-          text: reverseWordOrder(`נושא השיעור: ${analysis["נושא השיעור"]}`),
-          style: "subheader",
-          alignment: "right",
-          margin: [0, 0, 0, 10],
-        },
-        {
-          text: reverseWordOrder(`אחוז הצלחה: ${analysis["אחוז_הצלחה"]}%`),
-          alignment: "right",
-          margin: [0, 0, 0, 10],
-        },
-        {
-          text: reverseWordOrder(`טיפים לשיפור: ${analysis["טיפים_לשיפור"]}`),
-          alignment: "right",
-          margin: [0, 0, 0, 10],
-        },
-        {
-          text: reverseWordOrder(`חוזקות: ${analysis["חוזקות"]}`),
-          alignment: "right",
-          margin: [0, 0, 0, 20],
-        },
-        {
-          text: reverseWordOrder("שיעורי בית:"),
-          style: "subheader",
-          alignment: "right",
-          margin: [0, 0, 0, 10],
-        },
-        {
-          stack: (analysis["שיעורי_בית"] || []).map(
-            (hw: any, index: number) => ({
-              text: reverseWordOrder(`${index + 1}. ${hw["שאלה"]}`),
-              alignment: "right",
-              margin: [0, 0, 0, 5],
-            })
-          ),
-          margin: [0, 0, 0, 20],
-        },
-      ],
-      defaultStyle: {
-        font: "HebrewFont",
-      },
-      styles: {
-        header: { fontSize: 18, bold: true },
-        subheader: { fontSize: 14, bold: true },
-      },
-    };
-
-    const pdfDoc = printer.createPdfKitDocument(dd);
-    const buffers: Buffer[] = [];
-    return new Promise<Buffer>((resolve, reject) => {
-      pdfDoc.on("data", (b: Buffer) => buffers.push(b));
-      pdfDoc.on("end", () => resolve(Buffer.concat(buffers)));
-      pdfDoc.on("error", (e: Error) => reject(e));
-      pdfDoc.end();
-    });
-  }
-
   public async analyzeLesson(req: Request, res: Response): Promise<void> {
     console.log("analyzeLesson called");
     const {
@@ -678,25 +600,68 @@ than try to understand the student's thought process.
         return;
       }
 
-      // ——— CLEAN OUT TRIPLE-BACKTICK FENCES ———
+      // ——— IMPROVED CODE BLOCK EXTRACTION ———
       let jsonString = reportRaw.trim();
-      // if it’s wrapped in ```json ... ```
-      const fenceMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (fenceMatch) {
-        jsonString = fenceMatch[1];
-      }
-      // now parse
       let analysisObj: any;
+
       try {
-        analysisObj = JSON.parse(jsonString);
+        // First try direct parsing (in case it's already clean JSON)
+        try {
+          analysisObj = JSON.parse(jsonString);
+        } catch (directParseErr) {
+          // If direct parsing fails, try to extract from code block
+
+          // Look for code block with any language identifier (```json, ```, etc.)
+          const fenceMatch = jsonString.match(/```(?:\w*)?\s*([\s\S]*?)\s*```/);
+          if (fenceMatch && fenceMatch[1]) {
+            const extractedContent = fenceMatch[1].trim();
+
+            // Try parsing the extracted content
+            try {
+              analysisObj = JSON.parse(extractedContent);
+            } catch (extractedParseErr) {
+              // If still failing, try a more aggressive approach - find content between first and last ```
+              const startIndex = jsonString.indexOf("```") + 3;
+              const endIndex = jsonString.lastIndexOf("```");
+
+              if (startIndex > 3 && endIndex > startIndex) {
+                // Skip past any language identifier after the first ```
+                const afterTicksContent = jsonString.substring(startIndex);
+                const newLineIndex = afterTicksContent.indexOf("\n");
+
+                if (newLineIndex !== -1) {
+                  const contentStart = startIndex + newLineIndex + 1;
+                  const contentEnd = endIndex;
+                  const lastResortContent = jsonString
+                    .substring(contentStart, contentEnd)
+                    .trim();
+
+                  analysisObj = JSON.parse(lastResortContent);
+                } else {
+                  throw new Error("No content after backticks");
+                }
+              } else {
+                throw new Error("Invalid code block format");
+              }
+            }
+          } else {
+            throw new Error("No code block found in response");
+          }
+        }
       } catch (parseErr) {
         console.error("Failed to parse analysis JSON:", parseErr);
+        // Log the actual content for debugging
+        console.error(
+          "Raw content received:",
+          reportRaw.substring(0, 200) + "..."
+        );
         res.status(500).json({ error: "Analysis returned invalid JSON" });
         return;
       }
 
       // send the lesson report by email
-      const pdfBuffer = await this.generateLessonPdf(analysisObj);
+
+      const pdfBuffer = await generateLessonPdf(analysisObj);
       const attachment = {
         content: pdfBuffer.toString("base64"),
         filename: `lesson_report_${lessonId}.pdf`,
@@ -706,16 +671,25 @@ than try to understand the student's thought process.
 
       const { success, recordId } = await sendAndLogEmail(
         user,
-        `דוח שיעור על ${analysisObj["נושא השיעור"]}`,
+        `דוח שיעור על ${analysisObj["נושא השיעור"] || emailSubject}`,
         "להלן דוח השיעור שלך בקובץ מצורף.",
         [attachment] // <-- pass the PDF here
       );
 
       console.log("Email sent:", { success, recordId });
+
+      // Mark lesson as DONE
+      await lessonsModel.findByIdAndUpdate(lessonId, {
+        progress: "DONE",
+        endTime: new Date(),
+      });
+
       res.status(success ? 200 : 500).json({ success, recordId });
+      return;
     } catch (err) {
       console.error("analyzeLesson error:", err);
       res.status(500).json({ error: "Server error analyzing lesson" });
+      return;
     }
   }
 }
