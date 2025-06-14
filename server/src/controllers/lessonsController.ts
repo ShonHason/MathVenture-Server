@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { BaseController } from "./baseController";
 
 import { generateLessonPdf } from "../services/pdfGenerator";
-
+import { generateLessonReportEmail } from "../services/genericEmailPage";
 import mongoose from "mongoose";
 import { askQuestion } from "./geminiApi";
 import { textToSpeechConvert } from "./APIController/ttsController";
@@ -19,6 +19,7 @@ import { rejects } from "assert";
 // In-memory map to hold the latest expression for each lessonId
 // Key: lessonId, Value: arithmetic expression string (e.g. "2+3")
 const pendingQuestionKeys: Record<string, string> = {};
+// how do i get the student name and parent name from the request?
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 
@@ -30,17 +31,46 @@ async function lessonSummaryGemini(
     const payload = {
       chat: JSON.stringify(chatMessages, null, 2),
     };
-    const userPrompt =
-      `Return ONLY valid JSON — no markdown, no back-ticks. ` +
-      `תנתח בבקשה את בעברית תוכן השיעור ותחזיר אובייקט JSON  עם הסיכום הבא כמובן שהסיכום מיועד להורי התלמיד   : \n` +
-      `יש לשים לב שביטויים מתמטים נראים כמו שצריך בשאלות כל מספר שלילי לשים בסוגריים למשל לא -1 אלא (-1)\n` +
-      `1. נושא השיעור\n` +
-      `2. תצוגה של כל השאלות שנשאלו במהלך השיעור + תשובה של התלמיד + מספר הנסיונות שלקח לתלמיד להגיע לפתרון  \n` +
-      `3.אחוז הצלחה : מספר השאלות שהשיב עליהם נכון חלקי מספר השאלות הכולל * 100\n , (כל טעות מורידה גם אם בסוף הצליח להגיע לתשובה)` +
-      `4. טיפים לשיפור הביצועים של התלמיד לשיעורים הבאים, כמובן שבהתאם לשיעור הנוכחי.\n` +
-      `5. חוזקות של התלמיד : מה הוא עשה טוב בשיעור הזה.\n` +
-      `6.שיעורי בית : 10 שאלות נוספות בנושא עם דרגת קושי יותר גבוהות כמובן ביטויים מתמטים נכונים ` +
-      ` Chat history:\n${payload.chat} שעל בסיסו תבצע את הניתוח ;`;
+    const userPrompt = `
+Return ONLY valid JSON with NO markdown formatting, no \`\`\` backticks. The JSON should have this exact structure:
+
+{
+  "נושא השיעור": "Topic of the lesson in Hebrew",
+  "אחוז הצלחה": number between 0-100,
+  "טיפים לשיפור": "Improvement tips in Hebrew",
+  "חוזקות": "Student strengths in Hebrew",
+  "שיעורי בית": [
+    {"שאלה": "Question 1"},
+    {"שאלה": "Question 2"},
+    ...more questions
+  ]
+}
+
+INSTRUCTIONS IN ENGLISH:
+
+1. LESSON TOPIC: Extract the main mathematical topic from the chat history.
+
+2. אחוז הצלחה: Calculate by analyzing Part 2 of the lesson where there are exactly 15 questions:
+   - Identify all questions in Part 2 (look for "שְׁאֵלָה מִסְפָּר X מִתּוֹךְ 15")
+   - Count how many were answered correctly (look for responses indicating correct answers)
+   - Calculate: (number of correct answers / 15) * 100
+   - Example: If 10 out of 15 questions were answered correctly, אחוז הצלחה = 66
+
+3. טיפים לשיפור: Provide 3-4 practical tips for how the student can improve.
+
+4. חוזקות: List 2-3 positive aspects of the student's performance.
+
+5. שיעורי בית: Generate exactly 10 age-appropriate questions related to the lesson topic:
+   - Start easy and gradually increase difficulty
+   - Use clear mathematical language
+   - Each question must be in the form: {"שאלה": "Question text"}
+   - Make sure to put negative numbers in parentheses e.g., (-5)
+
+Remember: Return ONLY clean JSON without code blocks, and KEEP all field names with spaces, NOT underscores.
+
+Based on chat history analyze the lesson :
+${payload.chat}
+`;
 
     const chat = ai.chats.create({
       model: "gemini-2.0-flash",
@@ -434,48 +464,183 @@ than try to understand the student's thought process.
     }
 
     try {
+      // Initialize userFacingText with a default value
+      let userFacingText: string =
+        "Sorry, I couldn't process your question properly.";
+
       // 1) Forward the student's question to Gemini
       const rawResponse: string = await askQuestion(
         studentQuestion,
         "",
         lessonId
       );
-      let userFacingText: string;
 
-      // Clean up markdown code blocks and other formatting
+      // Add debug logging to see the raw response
+      console.log(
+        "Raw Gemini response:",
+        rawResponse.substring(0, 100) + "..."
+      );
+
+      // More aggressive cleaning of markdown code blocks
       let cleanedResponse = rawResponse.trim();
 
-      // Remove ```json and ``` markdown code blocks
-      const jsonBlockMatch = cleanedResponse.match(
-        /```(?:json)?\s*([\s\S]*?)\s*```/
-      );
-      if (jsonBlockMatch) {
-        cleanedResponse = jsonBlockMatch[1];
+      // First, try to remove the entire triple backtick wrapper
+      if (
+        cleanedResponse.startsWith("```") &&
+        cleanedResponse.includes("```", 3)
+      ) {
+        // Strip the first line if it contains ```json
+        const firstLineEnd = cleanedResponse.indexOf("\n");
+        if (
+          firstLineEnd > 0 &&
+          cleanedResponse.substring(0, firstLineEnd).includes("```")
+        ) {
+          cleanedResponse = cleanedResponse.substring(firstLineEnd + 1);
+        } else {
+          cleanedResponse = cleanedResponse.substring(3); // Just remove the first ```
+        }
+
+        // Strip the last ``` if present
+        const lastBacktickPos = cleanedResponse.lastIndexOf("```");
+        if (lastBacktickPos > 0) {
+          cleanedResponse = cleanedResponse
+            .substring(0, lastBacktickPos)
+            .trim();
+        }
       }
 
+      // Clean any remaining backticks or json labels
+      cleanedResponse = cleanedResponse.replace(/```json|```/g, "").trim();
+
+      console.log(
+        "Cleaned response:",
+        cleanedResponse.substring(0, 100) + "..."
+      );
+
       try {
-        const parsed = JSON.parse(cleanedResponse);
-        if (typeof parsed.text === "string") {
-          // Use a more precise emoji regex that preserves numbers
-          userFacingText = parsed.text.replace(
-            // This regex targets only emoji characters, not numbers
-            /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{27BF}]/gu,
-            ""
-          );
+        // First, try direct text extraction with regex before attempting JSON parsing
+        const textMatch = cleanedResponse.match(/"text"\s*:\s*"([^"]+)"/);
+
+        if (textMatch && textMatch[1]) {
+          // If regex extraction succeeds, use that directly
+          userFacingText = textMatch[1]
+            .replace(/\\"/g, '"')
+            .replace(/\\n/g, "\n");
         } else {
-          // Fallback if Gemini gave you something unexpected
-          userFacingText = cleanedResponse;
+          // If regex fails, try more aggressive JSON parsing
+
+          // First remove all literal newlines completely (not replacing with \n)
+          let sanitizedJson = cleanedResponse
+            .replace(/\r?\n/g, "") // Remove all newlines completely
+            .replace(/\t/g, " ") // Replace tabs with spaces
+            .trim();
+
+          // Ensure it's a valid JSON object format
+          if (!sanitizedJson.startsWith("{")) {
+            sanitizedJson = "{" + sanitizedJson;
+          }
+          if (!sanitizedJson.endsWith("}")) {
+            sanitizedJson = sanitizedJson + "}";
+          }
+
+          console.log(
+            "Sanitized JSON:",
+            sanitizedJson.substring(0, 50) + "..."
+          );
+
+          try {
+            const parsed = JSON.parse(sanitizedJson);
+
+            if (parsed && typeof parsed.text === "string") {
+              userFacingText = parsed.text
+                .replace(/\\n/g, "\n") // Convert escaped newlines back to actual newlines
+                .replace(
+                  /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{27BF}]/gu,
+                  ""
+                );
+            } else {
+              throw new Error("No text field in parsed JSON");
+            }
+          } catch (innerError) {
+            console.error("Inner JSON parse error:", innerError);
+
+            // Fall back to simple content extraction
+            if (cleanedResponse.includes("text")) {
+              userFacingText = cleanedResponse
+                .replace(/^.*"text"\s*:\s*"/i, "") // Remove everything before "text":"
+                .replace(/".*$/i, "") // Remove everything after the closing quote
+                .trim();
+            }
+          }
         }
       } catch (error) {
         console.error("JSON parse error:", error);
-        userFacingText = cleanedResponse;
+
+        // Special case for the lesson end message which often breaks due to multiple newlines
+        if (
+          cleanedResponse.includes("השיעור נגמר") ||
+          cleanedResponse.includes("הַשִּׁעוּר נִגְמַר")
+        ) {
+          // Extract just the text content without trying to parse JSON - use [\s\S] instead of /s flag
+          const endMessagePattern = /text"?\s*:\s*"([\s\S]*?)(?:"|$)/;
+          const endMessageMatch = cleanedResponse.match(endMessagePattern);
+
+          if (endMessageMatch && endMessageMatch[1]) {
+            // Use the captured text, removing any trailing quotes or backslashes
+            userFacingText = endMessageMatch[1]
+              .replace(/\\"/g, '"')
+              .replace(/\\$/g, "");
+          } else {
+            // If regex fails, extract everything between the first quote after "text": and the end
+            const textStartIndex = cleanedResponse.indexOf('"text"') + 7;
+            if (textStartIndex > 7) {
+              const valueStartIndex =
+                cleanedResponse.indexOf('"', textStartIndex) + 1;
+              if (valueStartIndex > 0) {
+                userFacingText = cleanedResponse
+                  .substring(valueStartIndex)
+                  .replace(/"\s*}[\s\S]*$/g, "") // Replace /s flag with [\s\S]
+                  .trim();
+              }
+            }
+          }
+
+          // If text extraction fails, use a generic end message
+          if (
+            !userFacingText ||
+            userFacingText ===
+              "Sorry, I couldn't process your question properly."
+          ) {
+            userFacingText = "השיעור נגמר! תודה רבה ונתראה בשיעור הבא!";
+          }
+        } else {
+          // Original fallback code for non-end-of-lesson messages
+          if (cleanedResponse.includes('"text"')) {
+            const textMatch = cleanedResponse.match(
+              /"text"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/
+            );
+            if (textMatch && textMatch[1]) {
+              userFacingText = textMatch[1]
+                .replace(/\\"/g, '"')
+                .replace(/\\n/g, "\n");
+            } else {
+              // Last resort - just return the cleaned response
+              userFacingText = cleanedResponse
+                .replace(/^\s*{\s*|\s*}\s*$/g, "") // Remove { and } if present
+                .replace(/"text"\s*:\s*"?|"?\s*$/g, ""); // Remove "text": and quotes
+            }
+          }
+        }
       }
 
-      // 2) Return exactly what Gemini sent (as plain text)
+      // 2) Return only the extracted text content
       res.json({ answer: userFacingText });
     } catch (err) {
       console.error("Error in chat handler:", err);
-      next(err);
+      res.status(500).json({
+        error: "Server error processing chat",
+        answer: "Sorry, there was a problem processing your question.",
+      });
     }
   }
 
@@ -660,6 +825,11 @@ than try to understand the student's thought process.
       }
 
       // send the lesson report by email
+      const htmlContent = generateLessonReportEmail({
+        studentName: user.fullname || user.parent_name, // Use student_name if available, or fallback to name
+        parentName: user.parent_name || user.fullname, // Use parent_name if available, or fallback to name
+        lessonSubject: analysisObj["נושא השיעור"] || emailSubject,
+      });
 
       const pdfBuffer = await generateLessonPdf(analysisObj);
       const attachment = {
@@ -673,7 +843,8 @@ than try to understand the student's thought process.
         user,
         `דוח שיעור על ${analysisObj["נושא השיעור"] || emailSubject}`,
         "להלן דוח השיעור שלך בקובץ מצורף.",
-        [attachment] // <-- pass the PDF here
+        [attachment], // <-- pass the PDF here,
+        htmlContent // <-- pass the HTML content here
       );
 
       console.log("Email sent:", { success, recordId });

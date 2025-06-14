@@ -38,7 +38,6 @@ async function generateDummyPdf() {
 
 // run it
 generateDummyPdf().catch((err) => {
-  
   console.error("❌ failed to generate PDF:", err);
   process.exit(1);
 });
