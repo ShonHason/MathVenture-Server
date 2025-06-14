@@ -1,13 +1,9 @@
 import lessonsModel, { ILesson } from "../modules/lessonsModel";
 import { Request, Response, NextFunction } from "express";
 import { BaseController } from "./baseController";
-// @ts-ignore: no types
-const UnicodeBidi = require("unicode-bidirectional/dist/unicode.bidirectional");
-const { resolve: bidiResolve, reorder: bidiReorder } = UnicodeBidi;
 
-// @ts-ignore: no types for internal printer
-import PdfPrinter from "pdfmake/src/printer";
-
+import { generateLessonPdf } from "../services/pdfGenerator";
+import { generateLessonReportEmail } from "../services/genericEmailPage";
 import mongoose from "mongoose";
 import { askQuestion } from "./geminiApi";
 import { textToSpeechConvert } from "./APIController/ttsController";
@@ -18,34 +14,12 @@ import { sendAndLogEmail } from "./emailController";
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
 import { User } from "../modules/userModel";
 import path from "path";
+import fs from "fs";
 import { rejects } from "assert";
 // In-memory map to hold the latest expression for each lessonId
 // Key: lessonId, Value: arithmetic expression string (e.g. "2+3")
 const pendingQuestionKeys: Record<string, string> = {};
-const fonts = {
-  HebrewFont: {
-    normal: path.resolve(
-      __dirname,
-      "../fonts/NotoSansHebrew_Condensed-Regular.ttf"
-    ),
-    bold: path.resolve(__dirname, "../fonts/NotoSansHebrew_Condensed-Bold.ttf"), // optional
-    italics: path.resolve(
-      __dirname,
-      "../fonts/NotoSansHebrew_Condensed-Regular.ttf"
-    ),
-  },
-};
-const printer = new PdfPrinter(fonts);
-function toVisual(text: string): string {
-  const cps = Array.from(text).map((ch) => ch.codePointAt(0)!);
-  const levels = bidiResolve(
-    cps,
-    /*paragraphLevel=*/ 1,
-    /*automaticLevel=*/ false
-  );
-  const reordered = bidiReorder(cps, levels);
-  return String.fromCodePoint(...reordered);
-}
+// how do i get the student name and parent name from the request?
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 
@@ -57,17 +31,46 @@ async function lessonSummaryGemini(
     const payload = {
       chat: JSON.stringify(chatMessages, null, 2),
     };
-    const userPrompt =
-      `Return ONLY valid JSON — no markdown, no back-ticks. ` +
-      `תנתח בבקשה את בעברית תוכן השיעור ותחזיר אובייקט JSON  עם הסיכום הבא כמובן שהסיכום מיועד להורי התלמיד   : \n` +
-      `יש לשים לב שביטויים מתמטים נראים כמו שצריך בשאלות כל מספר שלילי לשים בסוגריים למשל לא -1 אלא (-1)\n` +
-      `1. נושא השיעור\n` +
-      `2. תצוגה של כל השאלות שנשאלו במהלך השיעור + תשובה של התלמיד + מספר הנסיונות שלקח לתלמיד להגיע לפתרון  \n` +
-      `3.אחוז הצלחה : מספר השאלות שהשיב עליהם נכון חלקי מספר השאלות הכולל * 100\n , (כל טעות מורידה גם אם בסוף הצליח להגיע לתשובה)` +
-      `4. טיפים לשיפור הביצועים של התלמיד לשיעורים הבאים, כמובן שבהתאם לשיעור הנוכחי.\n` +
-      `5. חוזקות של התלמיד : מה הוא עשה טוב בשיעור הזה.\n` +
-      `6.שיעורי בית : 10 שאלות נוספות בנושא עם דרגת קושי יותר גבוהות כמובן ביטויים מתמטים נכונים ` +
-      ` Chat history:\n${payload.chat} שעל בסיסו תבצע את הניתוח ;`;
+    const userPrompt = `
+Return ONLY valid JSON with NO markdown formatting, no \`\`\` backticks. The JSON should have this exact structure:
+
+{
+  "נושא השיעור": "Topic of the lesson in Hebrew",
+  "אחוז הצלחה": number between 0-100,
+  "טיפים לשיפור": "Improvement tips in Hebrew",
+  "חוזקות": "Student strengths in Hebrew",
+  "שיעורי בית": [
+    {"שאלה": "Question 1"},
+    {"שאלה": "Question 2"},
+    ...more questions
+  ]
+}
+
+INSTRUCTIONS IN ENGLISH:
+
+1. LESSON TOPIC: Extract the main mathematical topic from the chat history.
+
+2. אחוז הצלחה: Calculate by analyzing Part 2 of the lesson where there are exactly 15 questions:
+   - Identify all questions in Part 2 (look for "שְׁאֵלָה מִסְפָּר X מִתּוֹךְ 15")
+   - Count how many were answered correctly (look for responses indicating correct answers)
+   - Calculate: (number of correct answers / 15) * 100
+   - Example: If 10 out of 15 questions were answered correctly, אחוז הצלחה = 66
+
+3. טיפים לשיפור: Provide 3-4 practical tips for how the student can improve.
+
+4. חוזקות: List 2-3 positive aspects of the student's performance.
+
+5. שיעורי בית: Generate exactly 10 age-appropriate questions related to the lesson topic:
+   - Start easy and gradually increase difficulty
+   - Use clear mathematical language
+   - Each question must be in the form: {"שאלה": "Question text"}
+   - Make sure to put negative numbers in parentheses e.g., (-5)
+
+Remember: Return ONLY clean JSON without code blocks, and KEEP all field names with spaces, NOT underscores.
+
+Based on chat history analyze the lesson :
+${payload.chat}
+`;
 
     const chat = ai.chats.create({
       model: "gemini-2.0-flash",
@@ -128,8 +131,10 @@ class LessonsController extends BaseController<ILesson> {
     const formattedSamples = sampleQuestions.map((q) => `- ${q}`).join("\n");
 
     return `
-  You are a playful, creative, and warm-hearted math tutor for ${studentHebrew} ${username}, grade ${grade}, rank: ${rank} (“${champion}”).
+  You are a playful, creative, and warm-hearted math tutor for ${studentHebrew} ${username}, grade ${grade}, rank: ${rank} ("${champion}").
   Always address ${studentHebrew} ${username} in Hebrew with full diacritics in both parts.
+  
+  ‼️‼️ CRITICAL INSTRUCTION: ABSOLUTELY NO EMOJIS IN ANY RESPONSE. DO NOT USE ANY EMOJI CHARACTERS. ‼️‼️
   
   ⚠️ NO MARKDOWN FENCES—output raw JSON only. Do not wrap the object in triple backticks or any other code block.  
   Do not include any extra text, punctuation, or emojis around the JSON.
@@ -142,7 +147,7 @@ class LessonsController extends BaseController<ILesson> {
   
   If the message IS one of the 15 Part 2 questions, return exactly:
   {
-    "text": "<Hebrew question with full diacritics>",
+    "text": "שְׁאֵלָה מִסְפָּר X מִתּוֹךְ 15: <Hebrew question with full diacritics>",
     "counter": <number between 1 and 15>
   }
   
@@ -159,7 +164,7 @@ class LessonsController extends BaseController<ILesson> {
      Each question must be output as raw JSON with "text", "mathexpression", and "counter".  
      For example:
      {
-       "text": "אם יש לך 2 תפוחים ועוד 3 תפוחים, כמה תפוחים סך הכל?",
+       "text": "שְׁאֵלָה מִסְפָּר 1 מִתּוֹךְ 15: אם יש לך 2 תפוחים ועוד 3 תפוחים, כמה תפוחים סך הכל?",
        "counter": 1
      }
    
@@ -175,10 +180,12 @@ class LessonsController extends BaseController<ILesson> {
   
   Lesson rules:
   - Part 2 must contain exactly 15 unique math questions.
-  - Number each Part 2 question: "השאלה מספר X מתוך 15:" before its JSON block. without writing the number as hebrew word. 8-שמונה לדוגמא
-  - for example "שאלה מספר 1 מתוך 15:"/שאלה 2 מתוך 15:
+  - CRITICAL: Include the question number INSIDE the JSON text field as shown in the example: "שְׁאֵלָה מִסְפָּר X מִתּוֹךְ 15: <question>"
+  - NEVER send the question number as a separate message before the question
   - Each arithmetic expression must be new (do not reuse "2+3").
-  - Each numeric result must differ from all previous questions.
+  - CRITICAL: EVERY QUESTION MUST HAVE A DIFFERENT ANSWER THAN ALL PREVIOUS QUESTIONS. You must carefully track all previous answers and ensure each new question has a unique result.
+  - If you notice that a question will result in the same answer as a previous one, immediately change it to create a different result.
+  - Maintain a list of all previous answers to ensure diversity.
 
   Answer checking (after the student replies):
   - If the student answers correctly to a Part 2 question, output exactly corrcetResponses:(pick one):
@@ -224,7 +231,7 @@ than try to understand the student's thought process.
        }
   
        
-  Only reveal the numeric answer early if ${studentHebrew} explicitly asks “מה התשובה?”
+  Only reveal the numeric answer early if ${studentHebrew} explicitly asks "מה התשובה?"
   you can only say השיעור נגמר once , and thats happend after the user answer all the question.
   after you finish all 15 Part 2 questions, output exactly: 
   {
@@ -457,31 +464,183 @@ than try to understand the student's thought process.
     }
 
     try {
-      // 1) Forward the student’s question to Gemini (or whatever AI)
+      // Initialize userFacingText with a default value
+      let userFacingText: string =
+        "Sorry, I couldn't process your question properly.";
+
+      // 1) Forward the student's question to Gemini
       const rawResponse: string = await askQuestion(
         studentQuestion,
         "",
         lessonId
       );
-      let userFacingText: string;
-      try {
-        const parsed = JSON.parse(rawResponse);
-        if (typeof parsed.text === "string") {
-          userFacingText = parsed.text;
+
+      // Add debug logging to see the raw response
+      console.log(
+        "Raw Gemini response:",
+        rawResponse.substring(0, 100) + "..."
+      );
+
+      // More aggressive cleaning of markdown code blocks
+      let cleanedResponse = rawResponse.trim();
+
+      // First, try to remove the entire triple backtick wrapper
+      if (
+        cleanedResponse.startsWith("```") &&
+        cleanedResponse.includes("```", 3)
+      ) {
+        // Strip the first line if it contains ```json
+        const firstLineEnd = cleanedResponse.indexOf("\n");
+        if (
+          firstLineEnd > 0 &&
+          cleanedResponse.substring(0, firstLineEnd).includes("```")
+        ) {
+          cleanedResponse = cleanedResponse.substring(firstLineEnd + 1);
         } else {
-          // fallback if Gemini gave you something unexpected
-          userFacingText = rawResponse;
+          cleanedResponse = cleanedResponse.substring(3); // Just remove the first ```
         }
-      } catch {
-        // not valid JSON at all? Just pass it through
-        userFacingText = rawResponse;
+
+        // Strip the last ``` if present
+        const lastBacktickPos = cleanedResponse.lastIndexOf("```");
+        if (lastBacktickPos > 0) {
+          cleanedResponse = cleanedResponse
+            .substring(0, lastBacktickPos)
+            .trim();
+        }
       }
 
-      // 2) Return exactly what Gemini sent (as plain text)
+      // Clean any remaining backticks or json labels
+      cleanedResponse = cleanedResponse.replace(/```json|```/g, "").trim();
+
+      console.log(
+        "Cleaned response:",
+        cleanedResponse.substring(0, 100) + "..."
+      );
+
+      try {
+        // First, try direct text extraction with regex before attempting JSON parsing
+        const textMatch = cleanedResponse.match(/"text"\s*:\s*"([^"]+)"/);
+
+        if (textMatch && textMatch[1]) {
+          // If regex extraction succeeds, use that directly
+          userFacingText = textMatch[1]
+            .replace(/\\"/g, '"')
+            .replace(/\\n/g, "\n");
+        } else {
+          // If regex fails, try more aggressive JSON parsing
+
+          // First remove all literal newlines completely (not replacing with \n)
+          let sanitizedJson = cleanedResponse
+            .replace(/\r?\n/g, "") // Remove all newlines completely
+            .replace(/\t/g, " ") // Replace tabs with spaces
+            .trim();
+
+          // Ensure it's a valid JSON object format
+          if (!sanitizedJson.startsWith("{")) {
+            sanitizedJson = "{" + sanitizedJson;
+          }
+          if (!sanitizedJson.endsWith("}")) {
+            sanitizedJson = sanitizedJson + "}";
+          }
+
+          console.log(
+            "Sanitized JSON:",
+            sanitizedJson.substring(0, 50) + "..."
+          );
+
+          try {
+            const parsed = JSON.parse(sanitizedJson);
+
+            if (parsed && typeof parsed.text === "string") {
+              userFacingText = parsed.text
+                .replace(/\\n/g, "\n") // Convert escaped newlines back to actual newlines
+                .replace(
+                  /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{27BF}]/gu,
+                  ""
+                );
+            } else {
+              throw new Error("No text field in parsed JSON");
+            }
+          } catch (innerError) {
+            console.error("Inner JSON parse error:", innerError);
+
+            // Fall back to simple content extraction
+            if (cleanedResponse.includes("text")) {
+              userFacingText = cleanedResponse
+                .replace(/^.*"text"\s*:\s*"/i, "") // Remove everything before "text":"
+                .replace(/".*$/i, "") // Remove everything after the closing quote
+                .trim();
+            }
+          }
+        }
+      } catch (error) {
+        console.error("JSON parse error:", error);
+
+        // Special case for the lesson end message which often breaks due to multiple newlines
+        if (
+          cleanedResponse.includes("השיעור נגמר") ||
+          cleanedResponse.includes("הַשִּׁעוּר נִגְמַר")
+        ) {
+          // Extract just the text content without trying to parse JSON - use [\s\S] instead of /s flag
+          const endMessagePattern = /text"?\s*:\s*"([\s\S]*?)(?:"|$)/;
+          const endMessageMatch = cleanedResponse.match(endMessagePattern);
+
+          if (endMessageMatch && endMessageMatch[1]) {
+            // Use the captured text, removing any trailing quotes or backslashes
+            userFacingText = endMessageMatch[1]
+              .replace(/\\"/g, '"')
+              .replace(/\\$/g, "");
+          } else {
+            // If regex fails, extract everything between the first quote after "text": and the end
+            const textStartIndex = cleanedResponse.indexOf('"text"') + 7;
+            if (textStartIndex > 7) {
+              const valueStartIndex =
+                cleanedResponse.indexOf('"', textStartIndex) + 1;
+              if (valueStartIndex > 0) {
+                userFacingText = cleanedResponse
+                  .substring(valueStartIndex)
+                  .replace(/"\s*}[\s\S]*$/g, "") // Replace /s flag with [\s\S]
+                  .trim();
+              }
+            }
+          }
+
+          // If text extraction fails, use a generic end message
+          if (
+            !userFacingText ||
+            userFacingText ===
+              "Sorry, I couldn't process your question properly."
+          ) {
+            userFacingText = "השיעור נגמר! תודה רבה ונתראה בשיעור הבא!";
+          }
+        } else {
+          // Original fallback code for non-end-of-lesson messages
+          if (cleanedResponse.includes('"text"')) {
+            const textMatch = cleanedResponse.match(
+              /"text"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/
+            );
+            if (textMatch && textMatch[1]) {
+              userFacingText = textMatch[1]
+                .replace(/\\"/g, '"')
+                .replace(/\\n/g, "\n");
+            } else {
+              // Last resort - just return the cleaned response
+              userFacingText = cleanedResponse
+                .replace(/^\s*{\s*|\s*}\s*$/g, "") // Remove { and } if present
+                .replace(/"text"\s*:\s*"?|"?\s*$/g, ""); // Remove "text": and quotes
+            }
+          }
+        }
+      }
+
+      // 2) Return only the extracted text content
       res.json({ answer: userFacingText });
     } catch (err) {
       console.error("Error in chat handler:", err);
-      next(err);
+      res.status(500).json({
+        error: "Server error processing chat",
+        answer: "Sorry, there was a problem processing your question.",
+      });
     }
   }
 
@@ -563,78 +722,6 @@ than try to understand the student's thought process.
     }
   }
 
-  public async generateLessonPdf(analysis: any): Promise<Buffer> {
-    // Helper function to reverse word order while keeping letters intact
-    // And add extra spacing between words
-    function reverseWordOrder(text: string): string {
-      return text.split(' ').reverse().join('  '); // Double spaces between words
-    }
-    
-    const dd: any = {
-      content: [
-        {
-          text: reverseWordOrder("דוח שיעור"),
-          style: "header",
-          alignment: "center",
-          margin: [0, 0, 0, 20],
-        },
-        {
-          text: reverseWordOrder(`נושא השיעור: ${analysis["נושא השיעור"]}`),
-          style: "subheader",
-          alignment: "right",
-          margin: [0, 0, 0, 10],
-        },
-        {
-          text: reverseWordOrder(`אחוז הצלחה: ${analysis["אחוז_הצלחה"]}%`),
-          alignment: "right",
-          margin: [0, 0, 0, 10],
-        },
-        {
-          text: reverseWordOrder(`טיפים לשיפור: ${analysis["טיפים_לשיפור"]}`),
-          alignment: "right",
-          margin: [0, 0, 0, 10],
-        },
-        {
-          text: reverseWordOrder(`חוזקות: ${analysis["חוזקות"]}`),
-          alignment: "right",
-          margin: [0, 0, 0, 20],
-        },
-        {
-          text: reverseWordOrder("שיעורי בית:"),
-          style: "subheader",
-          alignment: "right",
-          margin: [0, 0, 0, 10],
-        },
-        {
-          stack: (analysis["שיעורי_בית"] || []).map(
-            (hw: any, index: number) => ({
-              text: reverseWordOrder(`${index + 1}. ${hw["שאלה"]}`),
-              alignment: "right",
-              margin: [0, 0, 0, 5],
-            })
-          ),
-          margin: [0, 0, 0, 20],
-        },
-      ],
-      defaultStyle: {
-        font: "HebrewFont",
-      },
-      styles: {
-        header: { fontSize: 18, bold: true },
-        subheader: { fontSize: 14, bold: true },
-      },
-    };
-
-    const pdfDoc = printer.createPdfKitDocument(dd);
-    const buffers: Buffer[] = [];
-    return new Promise<Buffer>((resolve, reject) => {
-      pdfDoc.on("data", (b: Buffer) => buffers.push(b));
-      pdfDoc.on("end", () => resolve(Buffer.concat(buffers)));
-      pdfDoc.on("error", (e: Error) => reject(e));
-      pdfDoc.end();
-    });
-  }
-
   public async analyzeLesson(req: Request, res: Response): Promise<void> {
     console.log("analyzeLesson called");
     const {
@@ -678,25 +765,73 @@ than try to understand the student's thought process.
         return;
       }
 
-      // ——— CLEAN OUT TRIPLE-BACKTICK FENCES ———
+      // ——— IMPROVED CODE BLOCK EXTRACTION ———
       let jsonString = reportRaw.trim();
-      // if it’s wrapped in ```json ... ```
-      const fenceMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (fenceMatch) {
-        jsonString = fenceMatch[1];
-      }
-      // now parse
       let analysisObj: any;
+
       try {
-        analysisObj = JSON.parse(jsonString);
+        // First try direct parsing (in case it's already clean JSON)
+        try {
+          analysisObj = JSON.parse(jsonString);
+        } catch (directParseErr) {
+          // If direct parsing fails, try to extract from code block
+
+          // Look for code block with any language identifier (```json, ```, etc.)
+          const fenceMatch = jsonString.match(/```(?:\w*)?\s*([\s\S]*?)\s*```/);
+          if (fenceMatch && fenceMatch[1]) {
+            const extractedContent = fenceMatch[1].trim();
+
+            // Try parsing the extracted content
+            try {
+              analysisObj = JSON.parse(extractedContent);
+            } catch (extractedParseErr) {
+              // If still failing, try a more aggressive approach - find content between first and last ```
+              const startIndex = jsonString.indexOf("```") + 3;
+              const endIndex = jsonString.lastIndexOf("```");
+
+              if (startIndex > 3 && endIndex > startIndex) {
+                // Skip past any language identifier after the first ```
+                const afterTicksContent = jsonString.substring(startIndex);
+                const newLineIndex = afterTicksContent.indexOf("\n");
+
+                if (newLineIndex !== -1) {
+                  const contentStart = startIndex + newLineIndex + 1;
+                  const contentEnd = endIndex;
+                  const lastResortContent = jsonString
+                    .substring(contentStart, contentEnd)
+                    .trim();
+
+                  analysisObj = JSON.parse(lastResortContent);
+                } else {
+                  throw new Error("No content after backticks");
+                }
+              } else {
+                throw new Error("Invalid code block format");
+              }
+            }
+          } else {
+            throw new Error("No code block found in response");
+          }
+        }
       } catch (parseErr) {
         console.error("Failed to parse analysis JSON:", parseErr);
+        // Log the actual content for debugging
+        console.error(
+          "Raw content received:",
+          reportRaw.substring(0, 200) + "..."
+        );
         res.status(500).json({ error: "Analysis returned invalid JSON" });
         return;
       }
 
       // send the lesson report by email
-      const pdfBuffer = await this.generateLessonPdf(analysisObj);
+      const htmlContent = generateLessonReportEmail({
+        studentName: user.fullname || user.parent_name, // Use student_name if available, or fallback to name
+        parentName: user.parent_name || user.fullname, // Use parent_name if available, or fallback to name
+        lessonSubject: analysisObj["נושא השיעור"] || emailSubject,
+      });
+
+      const pdfBuffer = await generateLessonPdf(analysisObj);
       const attachment = {
         content: pdfBuffer.toString("base64"),
         filename: `lesson_report_${lessonId}.pdf`,
@@ -706,16 +841,26 @@ than try to understand the student's thought process.
 
       const { success, recordId } = await sendAndLogEmail(
         user,
-        `דוח שיעור על ${analysisObj["נושא השיעור"]}`,
+        `דוח שיעור על ${analysisObj["נושא השיעור"] || emailSubject}`,
         "להלן דוח השיעור שלך בקובץ מצורף.",
-        [attachment] // <-- pass the PDF here
+        [attachment], // <-- pass the PDF here,
+        htmlContent // <-- pass the HTML content here
       );
 
       console.log("Email sent:", { success, recordId });
+
+      // Mark lesson as DONE
+      await lessonsModel.findByIdAndUpdate(lessonId, {
+        progress: "DONE",
+        endTime: new Date(),
+      });
+
       res.status(success ? 200 : 500).json({ success, recordId });
+      return;
     } catch (err) {
       console.error("analyzeLesson error:", err);
       res.status(500).json({ error: "Server error analyzing lesson" });
+      return;
     }
   }
 }

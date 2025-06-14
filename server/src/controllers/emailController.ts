@@ -147,7 +147,8 @@ export async function sendAndLogEmail(
     filename: string;
     type: string;
     disposition: string;
-  }[]
+  }[],
+  html?: string
 ): Promise<EmailResult> {
   console.log("Sending email is called");
   const emailAddr = user.parent_email ?? user.email!;
@@ -165,6 +166,7 @@ export async function sendAndLogEmail(
     from:    "MathVentureBot@gmail.com",
     subject,
     text,
+    html: html||undefined, // optional HTML content
     attachments: attachments // will be undefined if you don’t pass any
   };
 
