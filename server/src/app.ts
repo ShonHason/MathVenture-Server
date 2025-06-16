@@ -8,7 +8,6 @@ import fs from "fs";
 const envPath = path.resolve(__dirname, "../.env");
 console.log("📦 Loading .env from:", envPath);
 
-
 if (fs.existsSync(envPath)) {
   //console.log("📄 .env content:\n" + fs.readFileSync(envPath, "utf-8"));
   console.log("✅ .env file FOUND at:", envPath);
@@ -16,7 +15,7 @@ if (fs.existsSync(envPath)) {
   console.error("❌ .env file NOT FOUND at:", envPath);
 }
 
-dotenv.config({ path: envPath,override: true });
+dotenv.config({ path: envPath, override: true });
 
 // ✅ Log critical variables
 console.log(
@@ -24,6 +23,14 @@ console.log(
   process.env.GEMINI_API_KEY?.slice(0, 12)
 );
 console.log("✅ Loaded DATABASE_URL:", process.env.DATABASE_URL?.slice(0, 40));
+
+// Check Google OAuth config
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  console.log("✅ Google OAuth credentials found");
+} else {
+  console.warn("⚠️ Google OAuth credentials missing - auth will be disabled");
+}
+
 console.log("🛠 Current working directory:", process.cwd());
 
 // ✅ Port fallback if not defined in .env
@@ -33,6 +40,8 @@ const port = process.env.PORT || 4000;
 appInit
   .initApplication()
   .then((app) => {
+    // Use Google Auth Routes
+
     const server = http.createServer(app);
     server.listen(port, () => {
       console.log(`🚀 Server is running on port ${port}`);
