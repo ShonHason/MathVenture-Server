@@ -10,6 +10,7 @@ import apiRoutes from "./routes/apiRoutes";
 import swaggerUI from "swagger-ui-express";
 import swaggerJsDoc from "swagger-jsdoc";
 import leaderboardRoutes from "./routes/leaderboardRoutes";
+import googleAuthRoutes from './routes/googleAuthRoutes';
 //import multer from "multer";
 import fs from "fs-extra";
 //import sharp from "sharp";
@@ -60,6 +61,8 @@ app.use("/user", userRoutes);
 app.use("/email", emailRoutes);
 app.use("/api", apiRoutes);
 app.use("/leaderboard", leaderboardRoutes);
+app.use('/auth', googleAuthRoutes);
+
 // Production settings
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.resolve(__dirname, "../client/build")));

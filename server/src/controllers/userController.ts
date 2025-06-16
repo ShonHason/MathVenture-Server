@@ -2,6 +2,7 @@ import userModel from "../modules/userModel";
 import { Request, Response , NextFunction } from "express";
 import bcrypt from 'bcrypt'
 import jwt, { JwtPayload } from 'jsonwebtoken';
+import { RequestHandler } from 'express';
 
 const updateProfile = async (
   req: Request,
@@ -508,6 +509,123 @@ const removeSubject = async (req: Request, res: Response) => {
     res.status(500).send("Server error during removing subject");
   }
 }
-export default {removeSubject,addSubject,updateProfile,register , login, logout ,endOfRegistration, updatePassword , updateParentsMail, getUserProfile , deleteUser , refresh};  
+
+/**
+ * Handles the Google OAuth callback and manages user creation/login
+ */
+const googleCallback: RequestHandler = async (req, res) => {
+  try {
+    // TypeScript doesn't know req.user exists, so we need to access it differently
+    // Use type assertion to tell TypeScript it's okay
+    const googleUser = (req as any).user as {
+      id: string;
+      email: string;
+      displayName: string;
+      picture?: string;
+    };
+
+    if (!googleUser || !googleUser.email) {
+      res.status(400).send("Invalid Google authentication data");
+      return;
+    }
+
+    // Check if the user already exists
+    let user = await userModel.findOne({ email: googleUser.email });
+    let isNewUser = false;
+
+    if (!user) {
+      // Create a new user if they don't exist
+      isNewUser = true;
+      const newUser = await userModel.create({
+        email: googleUser.email,
+        username: googleUser.displayName || googleUser.email.split('@')[0],
+        // Set a default gender - user can update later
+        gender: "female", 
+        // No password for Google auth users
+        password: await bcrypt.hash(Math.random().toString(36).slice(-8), 10),
+        refreshTokens: [],
+        imageUrl: googleUser.picture || "",
+      });
+      
+      user = newUser;
+    }
+
+    // Generate tokens for the user
+    const tokens = generateTokens(user._id.toString());
+    if (!tokens) {
+      res.status(500).send('Problem with creating tokens');
+      return;
+    }
+
+    // Add the new refresh token to the user's tokens
+    user.refreshTokens.push(tokens.refreshToken);
+    await user.save();
+
+    // Close the popup and send data back to the parent window
+    res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener.postMessage(
+              {
+                type: 'GOOGLE_AUTH_SUCCESS',
+                user: ${JSON.stringify({
+                  _id: user._id,
+                  email: user.email,
+                  username: user.username,
+                  gender: user.gender,
+                  imageUrl: user.imageUrl,
+                  grade: user.grade,
+                  rank: user.rank,
+                  parent_email: user.parent_email,
+                  parent_name: user.parent_name,
+                  parent_phone: user.parent_phone,
+                  subjectsList: user.subjectsList || [],
+                })},
+                accessToken: "${tokens.accessToken}",
+                refreshToken: "${tokens.refreshToken}",
+                isNewUser: ${isNewUser}
+              },
+              "${process.env.CLIENT_URL || 'http://localhost:3000'}"
+            );
+            window.close();
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error("Error during Google authentication:", error);
+    res.status(500).send("Server error during Google authentication");
+  }
+};
+
+/**
+ * Initiates Google OAuth flow - this endpoint should redirect to Google
+ * This is a placeholder that would be replaced by actual Passport Google OAuth middleware
+ */
+const googleAuth = (req: Request, res: Response, next: NextFunction) => {
+  // This function would normally be handled by Passport Google OAuth middleware
+  // Placeholder for documentation - this should redirect to Google's auth page
+  console.log("Initiating Google OAuth flow");
+  next();
+};
+
+export default {
+  removeSubject,
+  addSubject,
+  updateProfile,
+  register,
+  login,
+  logout,
+  endOfRegistration,
+  updatePassword,
+  updateParentsMail,
+  getUserProfile,
+  deleteUser,
+  refresh,
+  googleAuth,      // Add the Google auth function
+  googleCallback,   // Add the Google callback function
+  generateTokens,
+};
 
 

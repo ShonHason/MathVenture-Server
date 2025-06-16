@@ -1,7 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import * as textToSpeech from '@google-cloud/text-to-speech';
 import fs from 'fs';
-import path from 'path';
 
 // 1) Quick sanity check: make sure credentials file exists
 const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS!;
