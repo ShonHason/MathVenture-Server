@@ -1,6 +1,5 @@
-import userController from "../controllers/userController";
+import userController, { userTokensMiddleware } from "../controllers/userController";
 import express from "express";
-import { userTokensMiddleware } from "../controllers/userController";
 /**
  * @swagger
  * components:
@@ -395,6 +394,4 @@ router.put(
  *         description: Server error during profile update
  */
 
-router.put("/addSubject",userTokensMiddleware,userController.addSubject);
-router.put("/removeSubject",userTokensMiddleware,userController.removeSubject);
 export default router;

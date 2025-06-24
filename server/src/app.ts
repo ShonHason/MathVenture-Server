@@ -1,5 +1,6 @@
 import appInit from "./server";
 import http from "http";
+import https from "https";
 import path from "path";
 import dotenv from "dotenv";
 import fs from "fs";
@@ -34,19 +35,28 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 console.log("🛠 Current working directory:", process.cwd());
 
 // ✅ Port fallback if not defined in .env
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 443;
 
 // ✅ Launch server
 appInit
   .initApplication()
-  .then((app) => {
-    // Use Google Auth Routes
-
-    const server = http.createServer(app);
-    server.listen(port, () => {
-      console.log(`🚀 Server is running on port ${port}`);
-    });
-  })
-  .catch((err) => {
-    console.error("❌ Error initializing app", err);
+  .then((app) => {  
+    if (process.env.NODE_ENV !== "production") {
+     console.log(" Running in development mode");
+     http.createServer(app).listen(port);
+     console.log("Server is Running in Http mode")
+    }
+    else{
+   
+    const option = {
+      key: fs.readFileSync(path.resolve(process.cwd(), "../client-key.pem")),
+      cert: fs.readFileSync(path.resolve(process.cwd(), "../client-cert.pem")),
+    };
+    https.createServer(option, app).listen(port);
+    console.log(`✅ Server is running on (HTTPS) in port ${port}`);
+  
+  }}).catch((err) => {
+    console.error("Problem Intlize The HTTP/HTTPS Server", err);
+    process.exit(1);  
   });
+ 

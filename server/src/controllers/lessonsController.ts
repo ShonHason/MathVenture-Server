@@ -13,13 +13,8 @@ import { GoogleGenAI, createUserContent } from "@google/genai";
 import { sendAndLogEmail } from "./emailController";
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
 import { User } from "../modules/userModel";
-import path from "path";
-import fs from "fs";
-import { rejects } from "assert";
-// In-memory map to hold the latest expression for each lessonId
-// Key: lessonId, Value: arithmetic expression string (e.g. "2+3")
-const pendingQuestionKeys: Record<string, string> = {};
-// how do i get the student name and parent name from the request?
+
+
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 
@@ -334,11 +329,8 @@ than try to understand the student's thought process.
       }
       const subject = this.sanitizeSubject(rawSubject);
 
-      const updatedUser = await UserModel.findOneAndUpdate(
-        { _id: userId },
-        { $pull: { subjectsList: subject } },
-        { new: true, lean: true }
-      );
+      const updatedUser = await UserModel.findById({ _id: userId })
+
       if (!updatedUser) {
         res.status(404).send("User not found");
         return;
@@ -766,7 +758,7 @@ than try to understand the student's thought process.
       }
 
       // ——— IMPROVED CODE BLOCK EXTRACTION ———
-      let jsonString = reportRaw.trim();
+      const jsonString = reportRaw.trim();
       let analysisObj: any;
 
       try {

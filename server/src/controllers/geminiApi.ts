@@ -5,14 +5,21 @@ import { GoogleGenAI, createUserContent, createModelContent } from "@google/gena
 import lessonsModel from "../modules/lessonsModel";
 import { progressType } from "../modules/enum/progress";
 
-// 1) Load & override the root .env
-const envPath = path.resolve(__dirname, "../../.env");
+const isDist = __dirname.includes("/dist/");
+
+const rootDir = isDist
+? path.resolve(__dirname, "../../") 
+  : path.resolve(__dirname, "../../../"); 
+
+const envPath = path.join(rootDir, ".env");
+
+
+console.log("📦 Loading .env from:", envPath);
 if (!fs.existsSync(envPath)) {
   throw new Error(`❌ [geminiApi] No .env at ${envPath}`);
 }
 dotenv.config({ path: envPath, override: true });
-
-// 2) Instantiate the Gemini client
+console.log("✅ Loaded NODE_ENV:", process.env.NODE_ENV);
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 
 // 3) Safely evaluate arithmetic expressions (fallback for quick math)
