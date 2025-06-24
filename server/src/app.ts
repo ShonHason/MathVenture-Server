@@ -7,6 +7,7 @@ import fs from "fs";
 
 // ✅ FORCE dotenv to load the correct file from the project root
 const envPath = path.resolve(__dirname, "../.env");
+// const envPath = path.join(__dirname, "../../.env"); // Alternative if you prefer relative paths DEV!!
 console.log("📦 Loading .env from:", envPath);
 
 if (fs.existsSync(envPath)) {
@@ -49,8 +50,8 @@ appInit
     else{
    
     const option = {
-      key: fs.readFileSync(path.resolve(process.cwd(), "../client-key.pem")),
-      cert: fs.readFileSync(path.resolve(process.cwd(), "../client-cert.pem")),
+      key: fs.readFileSync(path.resolve(process.cwd(), "myserver.key")),
+      cert: fs.readFileSync(path.resolve(process.cwd(), "CSB.crt")),
     };
     https.createServer(option, app).listen(port);
     console.log(`✅ Server is running on (HTTPS) in port ${port}`);

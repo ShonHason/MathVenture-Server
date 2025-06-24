@@ -4,6 +4,5 @@ dist/
 ```
 .env_prod
 /MathVentureCREDENTIALS.json
-client-cert.pem
-server-key.pem  
-client.csr
+CSB.crt
+myserver.key
