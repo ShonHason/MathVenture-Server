@@ -1,8 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import * as textToSpeech from '@google-cloud/text-to-speech';
-import fs from 'fs';
-import path from 'path';
-import dotenv from 'dotenv';
+
 // 1) Resolve and validate credentials path
 
 
