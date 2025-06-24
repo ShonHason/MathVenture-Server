@@ -5,18 +5,15 @@
     "target": "es6",
     "moduleResolution": "node",
     "sourceMap": true,
-    "outDir": "dist",
     "strict": true,
-    "jsx": "react-jsx",
+    "outDir": "dist",
+    "rootDir": "server/src",
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-     "typeRoots": [
-     "src/types",            // ← your custom declarations
-     "node_modules/@types"   // ← default
-   ]
-
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*","src/types/**/*",],
-  "exclude": ["node_modules", "dist"]
+  "include": ["server/src"],
+  "exclude": ["node_modules", "dist", "server/src/tests"],
+  "lib": ["es2015", "dom"]
 }

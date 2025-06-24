@@ -17,7 +17,6 @@ import fs from "fs-extra";
 
 const app: Express = express();
 
-// הגדרות CORS – חשוב להגדיר לפני שאר ה-middlewares
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:3000",
@@ -67,7 +66,7 @@ app.use('/auth', googleAuthRoutes);
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.resolve(__dirname, "../client/build")));
   app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "../client/build", "index.html"));
+    res.sendFile(path.resolve(process.cwd(), "../client/build", "index.html"));
   });
 }
 

@@ -1,31 +1,33 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import * as textToSpeech from '@google-cloud/text-to-speech';
 import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+// 1) Resolve and validate credentials path
 
-// 1) Quick sanity check: make sure credentials file exists
-const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS!;
-console.log('🔍 Checking TTS credentials at:', credsPath);
-if (!fs.existsSync(credsPath)) {
-  console.error('❌ TTS creds not found at', credsPath);
-  throw new Error(`Missing TTS creds file: ${credsPath}`);
-}
-console.log('✅ TTS credentials loaded from:', credsPath);
+
+const googleCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS ?? "" ;
 
 // 2) Create and warm up the TTS client once
 const client = new textToSpeech.TextToSpeechClient();
+
 (async () => {
-  console.log('⏳ Warming up TTS client...');
-  await client.synthesizeSpeech({
-    input: { text: ' ' },
-    voice: {
-      languageCode: 'en-US',
-      ssmlGender: textToSpeech.protos.google.cloud.texttospeech.v1.SsmlVoiceGender.NEUTRAL,
-    },
-    audioConfig: {
-      audioEncoding: textToSpeech.protos.google.cloud.texttospeech.v1.AudioEncoding.MP3,
-    },
-  });
-  console.log('✅ TTS client warmed up');
+  try {
+    console.log('⏳ Warming up TTS client...');
+    await client.synthesizeSpeech({
+      input: { text: ' ' },
+      voice: {
+        languageCode: 'en-US',
+        ssmlGender: textToSpeech.protos.google.cloud.texttospeech.v1.SsmlVoiceGender.NEUTRAL,
+      },
+      audioConfig: {
+        audioEncoding: textToSpeech.protos.google.cloud.texttospeech.v1.AudioEncoding.MP3,
+      },
+    });
+    console.log('✅ TTS client warmed up');
+  } catch (err) {
+    console.error('❌ Failed to warm up TTS client:', err);
+  }
 })();
 
 // 3) Build the router
@@ -48,14 +50,7 @@ router.post(
     console.log('🔊 TTS request:', text.slice(0, 30));
 
     try {
-      // 4) Prepare SSML for a natural Hebrew WaveNet voice
-      const ssml = `
-        <speak>
-          <prosody rate="0.95">
-            ${text}
-          </prosody>
-        </speak>
-      `;
+      const ssml = `<speak><prosody rate="0.95">${text}</prosody></speak>`;
 
       const [response] = await client.synthesizeSpeech({
         input: { ssml },
@@ -74,7 +69,6 @@ router.post(
         throw new Error('Empty audioContent');
       }
 
-      // 5) Stream the MP3 back
       res.setHeader('Content-Type', 'audio/mpeg');
       res.send(Buffer.from(response.audioContent as Uint8Array));
     } catch (err) {
@@ -83,20 +77,21 @@ router.post(
     }
   }
 );
+
+// Exported utility function
 export async function textToSpeechConvert(text: string): Promise<Buffer> {
-  // Wrap your text in SSML for prosody control
   const ssml = `<speak><prosody rate="0.95">${text}</prosody></speak>`;
 
   const [response] = await client.synthesizeSpeech({
-    input:    { ssml },
-    voice:    {
+    input: { ssml },
+    voice: {
       languageCode: 'he-IL',
-      name:         'he-IL-Wavenet-B',
-      ssmlGender:   textToSpeech.protos.google.cloud.texttospeech.v1.SsmlVoiceGender.FEMALE,
+      name: 'he-IL-Wavenet-B',
+      ssmlGender: textToSpeech.protos.google.cloud.texttospeech.v1.SsmlVoiceGender.FEMALE,
     },
     audioConfig: {
       audioEncoding: textToSpeech.protos.google.cloud.texttospeech.v1.AudioEncoding.MP3,
-      speakingRate:  0.95,
+      speakingRate: 0.95,
     },
   });
 

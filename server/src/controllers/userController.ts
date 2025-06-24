@@ -61,7 +61,6 @@ const register = async (req: Request, res: Response) => {
   const email  = req.body.email;
   const password  = req.body.password;
   const username = req.body.username;
-  const gender = req.body.gender;
 
     if (!email || !password || email.trim().length == 0 || password.trim().length == 0) {
     res.status(400).send('Email and password are required');
@@ -73,10 +72,7 @@ const register = async (req: Request, res: Response) => {
     return;
 
   }
-  if (!gender || !["female","male"].includes(gender)) {
-  res.status(400).send("You must specify gender as “female” or “male”");
-  return;
-  }
+
   const user = await userModel.findOne({email : email});
   if (user) {
     console.log("User already exists");
@@ -95,7 +91,6 @@ const register = async (req: Request, res: Response) => {
       email: email,
       password: hashedPassword ,
       username: username,
-      gender:gender,
       refreshTokens: [],
      
       });
@@ -110,11 +105,11 @@ const register = async (req: Request, res: Response) => {
     
     console.log("New user created");
     res.status(201).send({
+      username : newUser.username,
       email : newUser.email,
       _id : newUser._id,
       refreshToken : tokens.refreshToken,
       accessToken : tokens.accessToken,
-      subjectsList : [],
     });
     return;
   } catch (error) {
@@ -149,6 +144,7 @@ const generateTokens = (_id : string) : { accessToken : string , refreshToken : 
 }
 
 const login = async (req: Request, res: Response) => {
+  console.log("Login request received");
   const email = req.body.email;
   const password = req.body.password;
 
@@ -186,7 +182,6 @@ const login = async (req: Request, res: Response) => {
     parent_phone: user.parent_phone, // Return parent_phone if needed
     refreshToken: tokens.refreshToken,
     accessToken: tokens.accessToken,
-    subjectsList: user.subjectsList, // Return subjectsList if needed
   });
   return;
 }
@@ -304,6 +299,7 @@ const endOfRegistration = async (req: Request, res: Response) => {
     parent_email,
     parent_name,
     parent_phone,
+    
   } = req.body;
   console.log(dateOfBirth)
   // Validate that we received a userId
@@ -345,20 +341,51 @@ const endOfRegistration = async (req: Request, res: Response) => {
 };
 
 const deleteUser = async (req: Request, res: Response) => {
-  const decodedPayload = jwt.decode(req.body.accessToken);
+  console.log("Deleting user");
+  try {
+    const { userId, password } = req.body;
 
-  if (decodedPayload && typeof decodedPayload !== 'string') {
-  const userId = (decodedPayload as JwtPayload)._id;
-  const user = await userModel.findOne({_id : userId});
-    if (!user) {
-      res.status(400).send('Couldnt find user');
+    // Check if password is provided
+    if (!password) {
+      res.status(400).send('Password is required to delete account');
       return;
     }
+
+    // Find the user
+    const user = await userModel.findById(userId);
+    if (!user) {
+      res.status(404).send('User not found');
+      return;
+    }
+
+    // Special case for Google users - check if password is "GoogleUser"
+    // This is a simplified approach to identify Google-authenticated users
+    if (password === "GoogleUser" && user.password === "GoogleUser") {
+      // For Google users, we allow deletion with the special password
+      await user.deleteOne();
+      res.status(200).send('User deleted successfully');
+      return;
+    }
+    if(password === "GoogleUser" && user.password !== "GoogleUser") {
+      res.status(400).send('Only Google users can delete their account with this GoogleUser');
+      return;
+    }
+
+    // For regular users, verify the password
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      res.status(401).send('Incorrect password');
+      return;
+    }
+    
     await user.deleteOne();
-    res.status(200).send('User deleted');
-    return;
+    res.status(200).send('User deleted successfully');
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).send('Server error during account deletion');
   }
 }
+
 type TokenPayload = {    
   _id: string;
 }
@@ -457,58 +484,6 @@ const refresh = async (req: Request, res: Response) => {
   );
 };
 
-const addSubject = async (req: Request, res: Response) => {
-  const { userId, subject } = req.body;
-  if (!userId) {
-    res.status(400).send("User ID is required");
-    return;
-  }
-  try {
-    const updatedUser = await userModel.findById(userId);
-    if (!updatedUser) {
-      res.status(404).send("User not found");
-      return;
-    }
-    if (updatedUser.subjectsList?.includes(subject)) {
-      res.status(400).send("Subject already exists");
-      return;
-    }
-    updatedUser.subjectsList = updatedUser.subjectsList || [];
-    updatedUser.subjectsList.push(subject);
-
-    await updatedUser.save();
-    res.status(200).send(updatedUser);
-  } catch (error) {
-    console.error("Error adding subject:", error);
-    res.status(500).send("Server error during adding subject");
-  }
-}
-const removeSubject = async (req: Request, res: Response) => {
-  const { userId, subject } = req.body;
-  if (!userId) {
-    res.status(400).send("User ID is required");
-    return;
-  }
-  try {
-    const updatedUser = await userModel.findById(userId);
-    if (!updatedUser) {
-      res.status(404).send("User not found");
-      return;
-    }
-    if (!updatedUser.subjectsList?.includes(subject)) {
-      res.status(400).send("Subject does not exist");
-      return;
-    }
-    updatedUser.subjectsList = updatedUser.subjectsList.filter(
-      (sub: string) => sub !== subject
-    );
-    await updatedUser.save();
-    res.status(200).send(updatedUser);
-  } catch (error) {
-    console.error("Error removing subject:", error);
-    res.status(500).send("Server error during removing subject");
-  }
-}
 
 /**
  * Handles the Google OAuth callback and manages user creation/login
@@ -580,7 +555,6 @@ const googleCallback: RequestHandler = async (req, res) => {
                   parent_email: user.parent_email,
                   parent_name: user.parent_name,
                   parent_phone: user.parent_phone,
-                  subjectsList: user.subjectsList || [],
                 })},
                 accessToken: "${tokens.accessToken}",
                 refreshToken: "${tokens.refreshToken}",
@@ -611,8 +585,7 @@ const googleAuth = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export default {
-  removeSubject,
-  addSubject,
+ 
   updateProfile,
   register,
   login,

@@ -13,7 +13,6 @@ export interface IUser extends Document {
   rank?:         string;
   dateOfBirth?:  Date;
   imageUrl?:     string;
-  subjectsList?:    string[];  
 }
 
 export interface User {
@@ -91,10 +90,7 @@ const userSchema = new mongoose.Schema<IUser>(
       default: '',
       required: false,
     },
-    subjectsList: {
-      type: [String],
-      default: [],
-    },
+ 
   },
   {
     toJSON: {

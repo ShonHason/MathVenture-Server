@@ -2,5 +2,8 @@ node_modules/
 dist/
 .env
 ```
-.env
+.env_prod
 /MathVentureCREDENTIALS.json
+client-cert.pem
+server-key.pem  
+client.csr

@@ -240,9 +240,10 @@ router.delete("/:_id", (req: Request, res: Response) => {
 router.get("/getLessons/:userId", (req: Request, res: Response) => {
   lessonsController.getLessonsByUserId(req, res);
 });
-router.post("/start/:lessonId?", lessonsController.startLesson);
-router.post("/report/:lessonId", lessonsController.reportLesson.bind(lessonsController));
 
+router.post("/start/:lessonId", lessonsController.startLesson);
+router.post("/start", lessonsController.startLesson);
+router.post("/report/:lessonId", lessonsController.reportLesson.bind(lessonsController));
 
 // router.patch("/:_id/progress", lessonsController.updateProgress);
 router.post("/:lessonId/chat", lessonsController.chat.bind(lessonsController));
